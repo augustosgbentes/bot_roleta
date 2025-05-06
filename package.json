@@ -2,7 +2,7 @@
   "name": "robo-roleta",
   "version": "1.0.0",
   "description": "",
-  "main": "bot-roleta-stake.js",
+  "main": "roleta_bot.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node roleta_bot.js"
@@ -14,6 +14,7 @@
     "axios": "^1.9.0",
     "cheerio": "^1.0.0",
     "dotenv": "^16.5.0",
+    "express": "^5.1.0",
     "puppeteer": "^24.8.0"
   }
 }

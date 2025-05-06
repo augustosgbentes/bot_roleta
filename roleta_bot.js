@@ -659,3 +659,15 @@ async function enviarRelatorioDetalhado() {
   }
 })();
 
+// Inicia servidor Express para manter o bot vivo no Render
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('✅ Bot da Roleta está rodando!');
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 Web service ativo na porta ${PORT}`);
+});
