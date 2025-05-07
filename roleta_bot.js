@@ -279,27 +279,17 @@ async function getRoletaResultado() {
   }
 }
 
-// Estratégia baseada em cores (3 cores iguais seguidas)
+// Estratégia baseada em cores (3 cores iguais seguidas) - CORRIGIDA
 async function processarEstrategiaCores(res) {
   // Verifica se há um padrão de 3 cores iguais consecutivas
   if (!alertaAtivo && !corAlvo && !colunaAlvo && !duziaAlvo && historico.length >= 3) {
-    // Se temos uma última vitória, verificamos se ainda é recente (últimas 2 rodadas)
-    // e se algum dos números que estamos analisando é o número da última vitória
+    // Se temos uma última vitória, verificamos se o primeiro número da sequência é o vencedor
     const [r1, r2, r3] = historico;
     let deveIgnorar = false;
     
-    if (ultimaVitoria) {
-      // Verificar se o primeiro número (mais recente) da sequência é o último número vencedor
-      if (ultimaVitoria.numero === r1.numero) {
-        console.log(`Ignorando verificação, pois o primeiro número (${r1.numero}) é o último vencedor.`);
-        deveIgnorar = true;
-      }
-      // Verificar se estamos começando uma nova contagem depois de uma vitória recente
-      else if (ultimaVitoria.estrategia === 'cor' && 
-              (new Date() - ultimaVitoria.dataHora) < 5 * 60 * 1000) { // 5 minutos
-        console.log(`Ignorando verificação, pois tivemos uma vitória/derrota recente na estratégia de cores.`);
-        deveIgnorar = true;
-      }
+    if (ultimaVitoria && ultimaVitoria.numero === r1.numero) {
+      console.log(`Ignorando verificação, pois o primeiro número (${r1.numero}) é o último vencedor.`);
+      deveIgnorar = true;
     }
     
     if (!deveIgnorar) {
@@ -388,8 +378,10 @@ async function processarEstrategiaCores(res) {
       totalRedsCor++;
       await enviarTelegram(`❌ CORES: ${capitalize(res.cor)} [${res.numero}], ❌ Red/perca na estratégia de cor\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`);
       
-      // Mesmo após derrota, marcaremos o estado para evitar recomeçar contagem imediatamente
+      // Marcar este número para saber que a última derrota foi na estratégia de cores
       ultimaVitoria = {
+        numero: res.numero,  // Adicionado o número atual para controle
+        cor: res.cor,        // Adicionada a cor atual para controle
         estrategia: 'cor',
         dataHora: new Date()
       };
