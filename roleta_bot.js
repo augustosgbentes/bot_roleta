@@ -160,8 +160,8 @@ async function getRoletaResultado() {
     
     console.log('Iniciando navegador...');
     const browser = await puppeteer.launch({
-      headless: "new",  // Use o novo modo headless
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      executablePath: '/root/.cache/puppeteer/chrome/linux-136.0.7103.92/chrome-linux64/chrome',
+      headless: true
     });
     
     console.log('Abrindo nova página...');
