@@ -809,7 +809,7 @@ try {
   
   // Configura o intervalo para execução regular (a cada 15 segundos)
   console.log('⏱️ Configurando intervalo de execução a cada 15 segundos');
-  setInterval(getRoletaResultado, 15000);
+  setInterval(getRoletaResultado, 30000);
 } catch (err) {
   console.error('Erro fatal ao iniciar o bot:', err);
   // Tenta enviar mensagem de erro ao Telegram
