@@ -309,31 +309,30 @@ async function getRoletaResultado() {
 // Estratégia baseada em cores (3 cores iguais seguidas) - CORRIGIDA
 async function processarEstrategiaCores(res) {
   // Verifica se há um padrão de 3 cores iguais consecutivas
-  if (
-    !alertaAtivo &&
-    !corAlvo &&
-    !colunaAlvo &&
-    !duziaAlvo &&
-    historico.length >= 3
-  ) {
-    // Se temos uma última vitória, verificamos se o primeiro número da sequência é o vencedor
-    const [r1, r2, r3] = historico;
+  if (!alertaAtivo && !corAlvo && !colunaAlvo && !duziaAlvo && historico.length >= 3) {
+    // Importante: analisar da direita para a esquerda
+    // No contexto do nosso histórico, isso significa pegar os índices 2, 1, 0
+    // porque o histórico vai do mais recente (índice 0) para o mais antigo
+    const sequencia = [historico[2], historico[1], historico[0]];
+    const [direita, meio, esquerda] = sequencia;
+    
+    console.log(`Analisando sequência da direita para a esquerda: ${direita.numero} (${direita.cor}), ${meio.numero} (${meio.cor}), ${esquerda.numero} (${esquerda.cor})`);
+    
+    // Verificamos se o último número vencedor ainda está na sequência que estamos analisando
     let deveIgnorar = false;
-
-    if (ultimaVitoria && ultimaVitoria.numero === r1.numero) {
-      console.log(
-        `Ignorando verificação, pois o primeiro número (${r1.numero}) é o último vencedor.`
-      );
-      deveIgnorar = true;
+    
+    if (ultimaVitoria && ultimaVitoria.numero !== null) {
+      if (sequencia.some(item => item.numero === ultimaVitoria.numero)) {
+        console.log(`Ignorando verificação, pois o número vencedor (${ultimaVitoria.numero}) ainda está na sequência analisada.`);
+        deveIgnorar = true;
+      }
     }
-
+    
     if (!deveIgnorar) {
-      console.log(
-        `Verificando padrão de cores: ${r1.cor}, ${r2.cor}, ${r3.cor}`
-      );
-      if (r1.cor === r2.cor && r2.cor === r3.cor && r1.cor !== "verde") {
+      console.log(`Verificando padrão de cores (D→E): ${direita.cor}, ${meio.cor}, ${esquerda.cor}`);
+      if (direita.cor === meio.cor && meio.cor === esquerda.cor && direita.cor !== "verde") {
         alertaAtivo = true;
-        corAlvo = r1.cor;
+        corAlvo = direita.cor;
         await enviarTelegram(
           `⚠️ ESTRATÉGIA DE CORES: 3 ${corAlvo}s seguidos...\nAguardando próxima rodada para estratégia de cores...`
         );
@@ -457,8 +456,8 @@ async function processarEstrategiaCores(res) {
 
       // Marcar este número para saber que a última derrota foi na estratégia de cores
       ultimaVitoria = {
-        numero: res.numero, // Adicionado o número atual para controle
-        cor: res.cor, // Adicionada a cor atual para controle
+        numero: res.numero,
+        cor: res.cor,
         estrategia: "cor",
         dataHora: new Date(),
       };
@@ -906,8 +905,8 @@ async function processarResultado(res) {
   // Processa estratégia de dúzias
   await processarEstrategiaDuzias(res);
 
-  // Envia resumo a cada 50 rodadas
-  if (contadorRodadas % 50 === 0) {
+  // Envia resumo a cada 100 rodadas
+  if (contadorRodadas % 100 === 0) {
     await enviarResumo();
   }
 
