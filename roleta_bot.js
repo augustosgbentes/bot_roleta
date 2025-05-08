@@ -2,6 +2,7 @@ const axios = require("axios");
 const puppeteer = require("puppeteer"); // Você precisará instalar: npm install puppeteer
 require("dotenv").config();
 const express = require("express");
+let ultimoDiaVerificado = new Date().getDate(); // Dia do mês atual
 
 // Estado do bot
 let historico = [];
@@ -160,32 +161,50 @@ Esta é a maior sequência de números pretos consecutivos detectada até agora.
 // Armazenar o último resultado processado para comparação
 let ultimoResultadoProcessado = null;
 
-// Função principal para obter resultados da roleta
+// Variáveis globais para controlar o navegador
+let browser = null;
+let page = null;
+
+// Função principal modificada para manter o navegador aberto
 async function getRoletaResultado() {
   try {
     console.log("Buscando resultados da roleta...");
 
-    console.log("Iniciando navegador...");
-    const browser = await puppeteer.launch({
-      executablePath:
-        "/root/.cache/puppeteer/chrome/linux-136.0.7103.92/chrome-linux64/chrome",
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    // Inicializar o navegador apenas uma vez
+    if (!browser) {
+      console.log("Iniciando navegador pela primeira vez...");
+      browser = await puppeteer.launch({
+        executablePath:
+          "/root/.cache/puppeteer/chrome/linux-136.0.7103.92/chrome-linux64/chrome",
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+      
+      console.log("Abrindo nova página...");
+      page = await browser.newPage();
+      
+      // Configurando o User-Agent para parecer um navegador normal
+      await page.setUserAgent(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+      );
+    } else {
+      console.log("Navegador já está aberto, apenas atualizando a página...");
+    }
 
-    console.log("Abrindo nova página...");
-    const page = await browser.newPage();
+    // Verificar mudança de dia a cada execução
+    verificarMudancaDeDia();
 
-    // Configurando o User-Agent para parecer um navegador normal
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-    );
-
-    console.log("Navegando para casinoscores.com...");
-    await page.goto("https://casinoscores.com/lightning-roulette/", {
-      waitUntil: "networkidle2",
-      timeout: 60000,
-    });
+    // Navegar ou recarregar a página
+    if (page.url() === "https://casinoscores.com/lightning-roulette/") {
+      console.log("Recarregando a página...");
+      await page.reload({ waitUntil: "networkidle2", timeout: 60000 });
+    } else {
+      console.log("Navegando para casinoscores.com...");
+      await page.goto("https://casinoscores.com/lightning-roulette/", {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
+    }
 
     console.log("Página carregada, extraindo resultados...");
 
@@ -211,9 +230,6 @@ async function getRoletaResultado() {
       return resultados;
     });
 
-    await browser.close();
-    console.log("Navegador fechado.");
-
     if (!numeros || numeros.length === 0) {
       console.error("Não foi possível encontrar números da roleta.");
       return;
@@ -236,19 +252,13 @@ async function getRoletaResultado() {
       `Último resultado do site: ${resultado.numero} (${resultado.cor})`
     );
 
-    // SOLUÇÃO SIMPLIFICADA:
-    // Ao invés de usar lógica baseada em tempo, vamos usar o contexto completo dos resultados
-    // A Lightning Roulette mostra todos os resultados recentes em ordem
-    // Se o primeiro resultado mudou em relação aos outros números da lista, é um novo resultado
-
+    // Resto do seu código para verificar novos resultados continua igual
     let novoResultado = false;
 
     if (!ultimoResultadoProcessado) {
-      // Primeira execução do programa, considerar como novo resultado
       novoResultado = true;
       console.log("Primeiro resultado desde o início do programa.");
     } else if (ultimoResultadoProcessado.numero !== resultado.numero) {
-      // O número mais recente é diferente do último que processamos - é novo
       novoResultado = true;
       console.log(
         `Novo número detectado: ${resultado.numero} (anterior era ${ultimoResultadoProcessado.numero})`
@@ -257,8 +267,6 @@ async function getRoletaResultado() {
       numeros.length >= 2 &&
       ultimoResultadoProcessado.segundoNumero !== numeros[1]
     ) {
-      // Mesmo que o primeiro número seja igual, se o segundo número da lista mudou,
-      // isso indica que houve uma nova rodada e o mesmo número caiu novamente
       novoResultado = true;
       console.log(
         `Mesmo número (${resultado.numero}), mas o segundo número da lista mudou de ${ultimoResultadoProcessado.segundoNumero} para ${numeros[1]}. Considerando nova rodada.`
@@ -294,6 +302,20 @@ async function getRoletaResultado() {
     }
   } catch (err) {
     console.error("Erro ao capturar resultado:", err.message);
+    
+    // Se ocorrer um erro grave com o navegador, fechamos e reiniciamos na próxima execução
+    if (err.message.includes("Protocol error") || err.message.includes("Target closed") || err.message.includes("Session closed")) {
+      console.error("Erro de conexão com o navegador, reiniciando na próxima execução...");
+      try {
+        if (page) await page.close().catch(() => {});
+        if (browser) await browser.close().catch(() => {});
+      } catch (closeErr) {
+        console.error("Erro ao fechar navegador:", closeErr.message);
+      }
+      page = null;
+      browser = null;
+    }
+    
     if (err.response) {
       console.error("Resposta do site:", err.response.status);
       if (err.response.data) {
@@ -305,6 +327,24 @@ async function getRoletaResultado() {
     }
   }
 }
+// Adicione também uma função para gerenciar o encerramento do processo
+process.on('SIGINT', async () => {
+  console.log('Encerrando bot graciosamente...');
+  if (browser) {
+    console.log('Fechando navegador...');
+    await browser.close().catch(err => console.error("Erro ao fechar navegador:", err));
+  }
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('Recebido sinal de término...');
+  if (browser) {
+    console.log('Fechando navegador...');
+    await browser.close().catch(err => console.error("Erro ao fechar navegador:", err));
+  }
+  process.exit(0);
+});
 
 // Estratégia baseada em cores (3 cores iguais seguidas) - CORRIGIDA
 async function processarEstrategiaCores(res) {
@@ -979,6 +1019,73 @@ async function enviarRelatorioDetalhado() {
 📱 Bot monitorando 24/7 - Mantenha as apostas responsáveis!`);
 }
 
+// Adicione esta nova função para enviar o relatório diário e reiniciar contadores
+async function enviarRelatorioDiarioEReiniciar() {
+  const hoje = new Date();
+  const dataFormatada = hoje.toLocaleDateString('pt-BR', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric' 
+  });
+  
+  await enviarTelegram(`📅 RELATÓRIO FINAL DO DIA - ${dataFormatada}
+
+🎲 RESUMO DAS ÚLTIMAS 24 HORAS:
+✅ CORES: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} 
+✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} 
+✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}
+🟢 Total de Zeros: ${totalZeros}
+📈 Total de rodadas analisadas: ${contadorRodadas}
+
+🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
+⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
+
+💯 TAXA DE APROVEITAMENTO:
+🎯 Cores: ${Math.round((totalGreensCor / (totalGreensCor + totalRedsCor || 1)) * 100)}%
+🎯 Colunas: ${Math.round((totalGreensColuna / (totalGreensColuna + totalRedsColuna || 1)) * 100)}%
+🎯 Dúzias: ${Math.round((totalGreensDuzia / (totalGreensDuzia + totalRedsDuzia || 1)) * 100)}%
+
+🔄 Contadores reiniciados para o novo dia.
+📱 Bot continua monitorando 24/7 - Boas apostas!`);
+
+  // Reinicia todos os contadores para o novo dia
+  totalGreensCor = 0;
+  totalRedsCor = 0;
+  totalGreensColuna = 0;
+  totalRedsColuna = 0;
+  totalGreensDuzia = 0;
+  totalRedsDuzia = 0;
+  totalZeros = 0;
+  contadorRodadas = 0;
+  
+  // Não reiniciamos as sequências máximas, pois são recordes históricos
+  // Se quiser reiniciar também, descomente as linhas abaixo
+  /*
+  maiorSequenciaVermelho = 0;
+  maiorSequenciaPreto = 0;
+  */
+  
+  console.log("Contadores reiniciados para o novo dia.");
+}
+
+// Função para verificar a mudança de dia
+function verificarMudancaDeDia() {
+  const dataAtual = new Date();
+  const diaAtual = dataAtual.getDate();
+  
+  // Se o dia mudou
+  if (diaAtual !== ultimoDiaVerificado) {
+    console.log(`Dia mudou de ${ultimoDiaVerificado} para ${diaAtual}. Enviando relatório diário e reiniciando contadores.`);
+    
+    // Envia o relatório do dia anterior e reinicia contadores
+    enviarRelatorioDiarioEReiniciar();
+    
+    // Atualiza o dia verificado
+    ultimoDiaVerificado = diaAtual;
+  }
+}
+
+
 // Inicia o bot
 (async function () {
   try {
@@ -994,8 +1101,10 @@ async function enviarRelatorioDetalhado() {
     await getRoletaResultado();
 
     // Configura o intervalo para execução regular (a cada 15 segundos)
-    console.log("⏱️ Configurando intervalo de execução a cada 15 segundos");
+    console.log("⏱️ Configurando intervalo de execução a cada 30 segundos");
     setInterval(getRoletaResultado, 30000);
+    console.log("⏱️ Configurando verificação de mudança de dia a cada minuto");
+    setInterval(verificarMudancaDeDia, 60000); // Verifica a cada minuto
   } catch (err) {
     console.error("Erro fatal ao iniciar o bot:", err);
     // Tenta enviar mensagem de erro ao Telegram
