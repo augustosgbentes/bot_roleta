@@ -1607,7 +1607,7 @@ function resetarAlertaDuzias() {
     enviarTelegram("❌ Erro fatal ao iniciar o bot. Verifique os logs.", "PRINCIPAL").catch(
       () => {
         console.error(
-          "Também não foi possível enviar mensagem de erro ao Telegram"
+          "Também não foi possível enviar mensagem de erro ao Telegram :("
         );
       }
     );
