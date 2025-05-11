@@ -2,17 +2,106 @@ const axios = require("axios");
 const puppeteer = require("puppeteer"); // Você precisará instalar: npm install puppeteer
 require("dotenv").config();
 const express = require("express");
+
+// Variáveis globais para controlar o navegador
+let browser = null;
+let page = null;
+let checandoResultados = false; // Flag para evitar verificações concorrentes
+const CONFIG = {
+  verificacaoIntervalo: 5000, // 5 segundos para verificação contínua
+  atualizacaoPagina: 10 * 60 * 1000, // 10 minutos
+  reinicioNavegador: 30 * 60 * 1000, // 30 minutos
+};
+
+
+// Função para gerenciar a memória reiniciando o navegador periodicamente
+function configurarReinicioNavegador() {
+  console.log(`Configurando reinício automático do navegador a cada ${CONFIG.reinicioNavegador/60000} minutos`);
+  setInterval(async () => {
+    console.log("⚙️ Reiniciando navegador para conservar memória...");
+    try {
+      if (page) await page.close().catch(() => {});
+      if (browser) await browser.close().catch(() => {});
+      browser = null;
+      page = null;
+      await inicializarNavegador();
+      console.log("✅ Navegador reiniciado com sucesso");
+    } catch (err) {
+      console.error("Erro ao reiniciar navegador:", err.message);
+    }
+  }, CONFIG.reinicioNavegador);
+}
+// Configuração do Telegram para múltiplos grupos e tokens
+const TELEGRAM_GRUPOS = {
+  // Configuração de múltiplos grupos do Telegram
+  PRINCIPAL: {
+    token: process.env.TELEGRAM_TOKEN,
+    chatId: process.env.TELEGRAM_CHAT_ID
+  },
+  COLUNAS_DUZIAS: {
+    token: process.env.TELEGRAM_TOKEN_COLUNAS_DUZIAS || process.env.TELEGRAM_TOKEN,
+    chatId: process.env.TELEGRAM_CHAT_ID_COLUNAS_DUZIAS || process.env.TELEGRAM_CHAT_ID
+  },
+  TRES_CORES: {
+    token: process.env.TELEGRAM_TOKEN_TRES_CORES || process.env.TELEGRAM_TOKEN,
+    chatId: process.env.TELEGRAM_CHAT_ID_TRES_CORES || process.env.TELEGRAM_CHAT_ID
+  },
+  CINCO_CORES: {
+    token: process.env.TELEGRAM_TOKEN_CINCO_CORES || process.env.TELEGRAM_TOKEN,
+    chatId: process.env.TELEGRAM_CHAT_ID_CINCO_CORES || process.env.TELEGRAM_CHAT_ID
+  },
+  TRES_CORES_ALTERNADO: {
+    token: process.env.TELEGRAM_TOKEN_TRES_CORES_ALT || process.env.TELEGRAM_TOKEN,
+    chatId: process.env.TELEGRAM_CHAT_ID_TRES_CORES_ALT || process.env.TELEGRAM_CHAT_ID
+  },
+};
+
+// Função para enviar mensagens para grupos específicos do Telegram
+async function enviarTelegram(mensagem, grupo = "PRINCIPAL") {
+  try {
+    const config = TELEGRAM_GRUPOS[grupo] || TELEGRAM_GRUPOS.PRINCIPAL;
+    console.log(`Enviando para Telegram (${grupo}): ${mensagem}`);
+    const url = `https://api.telegram.org/bot${config.token}/sendMessage`;
+
+    const response = await axios.post(url, {
+      chat_id: config.chatId,
+      text: mensagem,
+    });
+
+    console.log(`Mensagem enviada com sucesso para ${grupo}`);
+    return response;
+  } catch (err) {
+    console.error(`Erro ao enviar mensagem para o Telegram (${grupo}):`, err.message);
+    if (err.response) {
+      console.error("Resposta do Telegram:", err.response.data);
+    }
+  }
+}
+
 let ultimoDiaVerificado = new Date().getDate(); // Dia do mês atual
 
 // Estado do bot
 let historico = [];
 let alertaAtivo = false;
 
-// Estratégia de cores
+// Estratégia de 3 cores seguidas
 let corAlvo = null;
 let rodadaG0Cor = null;
 let totalGreensCor = 0;
 let totalRedsCor = 0;
+
+// Estratégia de 5 cores seguidas
+let corAlvo5 = null;
+let rodadaG0Cor5 = null;
+let totalGreensCor5 = 0;
+let totalRedsCor5 = 0;
+
+// Estratégia de 3 cores seguidas com alternância
+let corAlvoAlt = null;
+let rodadaG0CorAlt = null;
+let totalGreensCorAlt = 0;
+let totalRedsCorAlt = 0;
+let contadorAlternancia = 0; // 0 = enviar, 1 = não enviar, 2 = enviar, etc.
 
 // Estratégia de colunas
 let colunaAlvo = null;
@@ -49,10 +138,6 @@ let ultimaVitoria = {
   estrategia: null,
   dataHora: null,
 };
-
-// Configuração do Telegram
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 // Números vermelhos na roleta
 const numerosVermelhos = [
@@ -115,8 +200,11 @@ function rastrearSequencias(res) {
 
       // Notifica sobre a nova maior sequência
       if (maiorSequenciaVermelho >= 5) {
-        enviarTelegram(`🔥 NOVA MAIOR SEQUÊNCIA: ${maiorSequenciaVermelho} vermelhos consecutivos!
-Esta é a maior sequência de números vermelhos consecutivos detectada até agora.`);
+        enviarTelegram(
+          `🔥 NOVA MAIOR SEQUÊNCIA: ${maiorSequenciaVermelho} vermelhos consecutivos!
+Esta é a maior sequência de números vermelhos consecutivos detectada até agora.`,
+          "PRINCIPAL"
+        );
       }
     }
   } else if (res.cor === "preto") {
@@ -140,8 +228,11 @@ Esta é a maior sequência de números vermelhos consecutivos detectada até ago
 
       // Notifica sobre a nova maior sequência
       if (maiorSequenciaPreto >= 5) {
-        enviarTelegram(`⚫ NOVA MAIOR SEQUÊNCIA: ${maiorSequenciaPreto} pretos consecutivos!
-Esta é a maior sequência de números pretos consecutivos detectada até agora.`);
+        enviarTelegram(
+          `⚫ NOVA MAIOR SEQUÊNCIA: ${maiorSequenciaPreto} pretos consecutivos!
+Esta é a maior sequência de números pretos consecutivos detectada até agora.`,
+          "PRINCIPAL"
+        );
       }
     }
   }
@@ -161,100 +252,113 @@ Esta é a maior sequência de números pretos consecutivos detectada até agora.
 // Armazenar o último resultado processado para comparação
 let ultimoResultadoProcessado = null;
 
-// Variáveis globais para controlar o navegador
-let browser = null;
-let page = null;
+// Inicializar o navegador
+async function inicializarNavegador() {
+  console.log("Iniciando navegador...");
+  browser = await puppeteer.launch({
+    executablePath:
+      "/root/.cache/puppeteer/chrome/linux-136.0.7103.92/chrome-linux64/chrome",
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+  
+  console.log("Abrindo nova página...");
+  page = await browser.newPage();
+  
+  // Configurando o User-Agent para parecer um navegador normal
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+  );
+  
+  console.log("Navegando para casinoscores.com...");
+  await page.goto("https://casinoscores.com/lightning-roulette/", {
+    waitUntil: "networkidle2",
+    timeout: 60000,
+  });
+  
+  // Espera pelo seletor de resultados
+  await page.waitForSelector("#latestSpinsTag", { timeout: 30000 })
+    .catch(() => console.log("Timeout ao esperar pelo seletor, tentando mesmo assim..."));
+  
+  console.log("Navegador inicializado com sucesso!");
+}
 
-// Função principal modificada para manter o navegador aberto
-async function getRoletaResultado() {
+// Função para atualizar a página periodicamente
+async function atualizarPagina() {
+  console.log("Atualizando a página...");
+  
   try {
-    console.log("Buscando resultados da roleta...");
-
-    // Inicializar o navegador apenas uma vez
-    if (!browser) {
-      console.log("Iniciando navegador pela primeira vez...");
-      browser = await puppeteer.launch({
-        executablePath:
-          "/root/.cache/puppeteer/chrome/linux-136.0.7103.92/chrome-linux64/chrome",
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      });
-      
-      console.log("Abrindo nova página...");
-      page = await browser.newPage();
-      
-      // Configurando o User-Agent para parecer um navegador normal
-      await page.setUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-      );
-    } else {
-      console.log("Navegador já está aberto, apenas atualizando a página...");
+    if (!browser || !page) {
+      console.log("Navegador não está aberto, inicializando...");
+      await inicializarNavegador();
+      return;
     }
+    
+    await page.reload({ waitUntil: "networkidle2", timeout: 60000 });
+    console.log("Página atualizada com sucesso!");
+  } catch (err) {
+    console.error("Erro ao atualizar página:", err.message);
+    
+    // Se ocorrer erro, tenta reiniciar o navegador
+    try {
+      if (page) await page.close().catch(() => {});
+      if (browser) await browser.close().catch(() => {});
+      browser = null;
+      page = null;
+      await inicializarNavegador();
+    } catch (resetErr) {
+      console.error("Erro ao reiniciar navegador:", resetErr.message);
+    }
+  }
+}
 
-    // Verificar mudança de dia a cada execução
+// Função para verificar resultados continuamente
+async function verificarResultadosContinuamente() {
+  if (checandoResultados) return; // Evita execuções concorrentes
+  checandoResultados = true;
+  
+  try {
+    if (!browser || !page) {
+      console.log("Navegador não está aberto, inicializando...");
+      await inicializarNavegador();
+    }
+    
+    // Verifica mudança de dia
     verificarMudancaDeDia();
-
-    // Navegar ou recarregar a página
-    if (page.url() === "https://casinoscores.com/lightning-roulette/") {
-      console.log("Recarregando a página...");
-      await page.reload({ waitUntil: "networkidle2", timeout: 60000 });
-    } else {
-      console.log("Navegando para casinoscores.com...");
-      await page.goto("https://casinoscores.com/lightning-roulette/", {
-        waitUntil: "networkidle2",
-        timeout: 60000,
-      });
-    }
-
-    console.log("Página carregada, extraindo resultados...");
-
-    // Esperando pelo conteúdo carregar
-    await page
-      .waitForSelector("#latestSpinsTag", { timeout: 30000 })
-      .catch(() =>
-        console.log("Timeout ao esperar pelo seletor, tentando mesmo assim...")
-      );
-
-    // Extraindo os números usando o seletor específico
+    
+    // Extrai resultados sem recarregar a página
     const numeros = await page.evaluate(() => {
       const resultados = [];
       const elementos = document.querySelectorAll("#latestSpinsTag .badge");
-
+      
       elementos.forEach((elem) => {
         const numero = parseInt(elem.textContent.trim(), 10);
         if (!isNaN(numero) && numero >= 0 && numero <= 36) {
           resultados.push(numero);
         }
       });
-
+      
       return resultados;
     });
-
+    
     if (!numeros || numeros.length === 0) {
-      console.error("Não foi possível encontrar números da roleta.");
+      console.log("Não foi possível encontrar números da roleta.");
+      checandoResultados = false;
       return;
     }
-
-    console.log(
-      `Encontrados ${numeros.length} resultados: ${numeros.join(", ")}`
-    );
-
-    // Pegamos o resultado mais recente (primeiro da lista)
+    
+    // Analisa os resultados
     const ultimoNumero = numeros[0];
     const ultimaCor = getCor(ultimoNumero);
-
+    
     const resultado = {
       numero: ultimoNumero,
       cor: ultimaCor,
     };
-
-    console.log(
-      `Último resultado do site: ${resultado.numero} (${resultado.cor})`
-    );
-
-    // Resto do seu código para verificar novos resultados continua igual
+    
+    // Verifica se é um novo resultado
     let novoResultado = false;
-
+    
     if (!ultimoResultadoProcessado) {
       novoResultado = true;
       console.log("Primeiro resultado desde o início do programa.");
@@ -271,88 +375,62 @@ async function getRoletaResultado() {
       console.log(
         `Mesmo número (${resultado.numero}), mas o segundo número da lista mudou de ${ultimoResultadoProcessado.segundoNumero} para ${numeros[1]}. Considerando nova rodada.`
       );
-    } else {
-      console.log(
-        `Sem mudanças nos resultados. Último número continua sendo ${resultado.numero}.`
-      );
     }
-
+    
     if (novoResultado) {
       console.log("Novo resultado confirmado, atualizando histórico...");
-
+      
       // Atualiza o histórico
       historico.unshift(resultado);
       if (historico.length > 20) historico = historico.slice(0, 20);
-
+      
       // Rastreia sequências de cores
       rastrearSequencias(resultado);
-
+      
       // Processa o resultado (estratégias)
       await processarResultado(resultado);
-
-      // Atualiza o resultado processado, incluindo o segundo número para comparação futura
+      
+      // Atualiza o resultado processado
       ultimoResultadoProcessado = {
         numero: resultado.numero,
         cor: resultado.cor,
         segundoNumero: numeros.length >= 2 ? numeros[1] : null,
       };
-    } else {
-      // Nenhuma mudança nos resultados
-      console.log("Aguardando nova rodada da roleta...");
+      
+      console.log("Resultado processado com sucesso!");
     }
-  } catch (err) {
-    console.error("Erro ao capturar resultado:", err.message);
     
-    // Se ocorrer um erro grave com o navegador, fechamos e reiniciamos na próxima execução
-    if (err.message.includes("Protocol error") || err.message.includes("Target closed") || err.message.includes("Session closed")) {
-      console.error("Erro de conexão com o navegador, reiniciando na próxima execução...");
+    checandoResultados = false;
+  } catch (err) {
+    console.error("Erro ao verificar resultados:", err.message);
+    
+    // Verifica se precisa reiniciar o navegador
+    if (
+      err.message.includes("Protocol error") || 
+      err.message.includes("Target closed") || 
+      err.message.includes("Session closed")
+    ) {
+      console.log("Erro de conexão com o navegador, reiniciando...");
       try {
         if (page) await page.close().catch(() => {});
         if (browser) await browser.close().catch(() => {});
+        browser = null;
+        page = null;
       } catch (closeErr) {
         console.error("Erro ao fechar navegador:", closeErr.message);
       }
-      page = null;
-      browser = null;
     }
     
-    if (err.response) {
-      console.error("Resposta do site:", err.response.status);
-      if (err.response.data) {
-        console.error(
-          "HTML da resposta:",
-          err.response.data.substring(0, 200) + "..."
-        );
-      }
-    }
+    checandoResultados = false;
   }
 }
-// Adicione também uma função para gerenciar o encerramento do processo
-process.on('SIGINT', async () => {
-  console.log('Encerrando bot graciosamente...');
-  if (browser) {
-    console.log('Fechando navegador...');
-    await browser.close().catch(err => console.error("Erro ao fechar navegador:", err));
-  }
-  process.exit(0);
-});
 
-process.on('SIGTERM', async () => {
-  console.log('Recebido sinal de término...');
-  if (browser) {
-    console.log('Fechando navegador...');
-    await browser.close().catch(err => console.error("Erro ao fechar navegador:", err));
-  }
-  process.exit(0);
-});
 
-// Estratégia baseada em cores (3 cores iguais seguidas) - CORRIGIDA
+// Estratégia baseada em 3 cores iguais seguidas
 async function processarEstrategiaCores(res) {
   // Verifica se há um padrão de 3 cores iguais consecutivas
-  if (!alertaAtivo && !corAlvo && !colunaAlvo && !duziaAlvo && historico.length >= 3) {
-    // Importante: analisar da direita para a esquerda
-    // No contexto do nosso histórico, isso significa pegar os índices 2, 1, 0
-    // porque o histórico vai do mais recente (índice 0) para o mais antigo
+  if (!alertaAtivo && !corAlvo && !colunaAlvo && !duziaAlvo && !corAlvo5 && !corAlvoAlt && historico.length >= 3) {
+    // Analisar da direita para a esquerda
     const sequencia = [historico[2], historico[1], historico[0]];
     const [direita, meio, esquerda] = sequencia;
     
@@ -374,7 +452,8 @@ async function processarEstrategiaCores(res) {
         alertaAtivo = true;
         corAlvo = direita.cor;
         await enviarTelegram(
-          `⚠️ ESTRATÉGIA DE CORES: 3 ${corAlvo}s seguidos...\nAguardando próxima rodada para estratégia de cores...`
+          `⚠️ ESTRATÉGIA DE CORES: 3 ${corAlvo}s seguidos...\nAguardando próxima rodada para estratégia de cores...`,
+          "TRES_CORES"
         );
         console.log(`Alerta ativado para cor! Cor alvo: ${corAlvo}`);
       }
@@ -386,7 +465,9 @@ async function processarEstrategiaCores(res) {
     corAlvo &&
     rodadaG0Cor === null &&
     !colunaAlvo &&
-    !duziaAlvo
+    !duziaAlvo &&
+    !corAlvo5 &&
+    !corAlvoAlt
   ) {
     console.log(
       `Alerta ativo para cor, primeira tentativa (G0). Cor alvo: ${corAlvo}`
@@ -396,7 +477,8 @@ async function processarEstrategiaCores(res) {
       totalZeros++;
       totalGreensCor++;
       await enviarTelegram(
-        `🟢 CORES: Número 0 caiu! ✅ Green para estratégia de cor\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`
+        `🟢 CORES: Número 0 caiu! ✅ Green para estratégia de cor\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`,
+        "TRES_CORES"
       );
 
       // Marcar este número como vencedor
@@ -416,7 +498,8 @@ async function processarEstrategiaCores(res) {
       await enviarTelegram(
         `🟢 CORES: ${capitalize(corAlvo)} [${
           res.numero
-        }], ✅ Green para estratégia de cor!\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`
+        }], ✅ Green para estratégia de cor!\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`,
+        "TRES_CORES"
       );
 
       // Marcar este número como vencedor
@@ -435,7 +518,8 @@ async function processarEstrategiaCores(res) {
       await enviarTelegram(
         `🔄 CORES: ${capitalize(res.cor)} [${
           res.numero
-        }], vamos para o G1 na estratégia de cor...`
+        }], vamos para o G1 na estratégia de cor...`,
+        "TRES_CORES"
       );
       rodadaG0Cor = res;
       console.log(
@@ -444,14 +528,15 @@ async function processarEstrategiaCores(res) {
     }
   }
   // Segunda rodada após detectar padrão para cores (G1)
-  else if (alertaAtivo && corAlvo && rodadaG0Cor && !colunaAlvo && !duziaAlvo) {
+  else if (alertaAtivo && corAlvo && rodadaG0Cor && !colunaAlvo && !duziaAlvo && !corAlvo5 && !corAlvoAlt) {
     console.log("Processando G1 para estratégia de cor");
 
     if (res.numero === 0) {
       totalZeros++;
       totalGreensCor++;
       await enviarTelegram(
-        `🟢 CORES: Número 0 caiu! ✅ Green no G1 para estratégia de cor\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`
+        `🟢 CORES: Número 0 caiu! ✅ Green no G1 para estratégia de cor\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`,
+        "TRES_CORES"
       );
 
       // Marcar este número como vencedor
@@ -471,7 +556,8 @@ async function processarEstrategiaCores(res) {
       await enviarTelegram(
         `🟢 CORES: ${capitalize(corAlvo)} [${
           res.numero
-        }], ✅ Green no G1 para estratégia de cor!\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`
+        }], ✅ Green no G1 para estratégia de cor!\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`,
+        "TRES_CORES"
       );
 
       // Marcar este número como vencedor
@@ -491,7 +577,8 @@ async function processarEstrategiaCores(res) {
       await enviarTelegram(
         `❌ CORES: ${capitalize(res.cor)} [${
           res.numero
-        }], ❌ Red/perca na estratégia de cor\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`
+        }], ❌ Red/perca na estratégia de cor\n📊 Cores: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} | Zeros: ${totalZeros}`,
+        "TRES_CORES"
       );
 
       // Marcar este número para saber que a última derrota foi na estratégia de cores
@@ -507,7 +594,350 @@ async function processarEstrategiaCores(res) {
   }
 }
 
-// Função para resetar alerta de cores - MODIFICADA
+// Estratégia baseada em 5 cores iguais seguidas
+async function processarEstrategiaCincoCorres(res) {
+  // Verifica se há um padrão de 5 cores iguais consecutivas
+  if (!alertaAtivo && !corAlvo && !colunaAlvo && !duziaAlvo && !corAlvo5 && !corAlvoAlt && historico.length >= 5) {
+    // Importante: analisar os últimos 5 números da direita para a esquerda
+    const sequencia = [historico[4], historico[3], historico[2], historico[1], historico[0]];
+    const cores = sequencia.map(item => item.cor);
+    
+    console.log(`Analisando 5 cores da direita para a esquerda: ${cores.join(', ')}`);
+    
+    // Verificamos se o último número vencedor ainda está na sequência que estamos analisando
+    let deveIgnorar = false;
+    
+    if (ultimaVitoria && ultimaVitoria.numero !== null && ultimaVitoria.estrategia === "cor5") {
+      if (sequencia.some(item => item.numero === ultimaVitoria.numero)) {
+        console.log(`Ignorando verificação, pois o número vencedor (${ultimaVitoria.numero}) ainda está na sequência analisada.`);
+        deveIgnorar = true;
+      }
+    }
+    
+    if (!deveIgnorar) {
+      // Verificar se todos os elementos no array são iguais (exceto verde)
+      const todasCoresIguais = cores.every(cor => cor === cores[0] && cor !== "verde");
+      
+      if (todasCoresIguais) {
+        alertaAtivo = true;
+        corAlvo5 = cores[0];
+        await enviarTelegram(
+          `⚠️ ESTRATÉGIA DE 5 CORES: Detectados 5 ${corAlvo5}s seguidos!\nAguardando próxima rodada para estratégia de 5 cores...`,
+          "CINCO_CORES"
+        );
+        console.log(`Alerta ativado para 5 cores! Cor alvo: ${corAlvo5}`);
+      }
+    }
+  }
+  // Primeira rodada após detectar padrão para 5 cores (G0)
+  else if (
+    alertaAtivo &&
+    corAlvo5 &&
+    rodadaG0Cor5 === null &&
+    !colunaAlvo &&
+    !duziaAlvo &&
+    !corAlvo &&
+    !corAlvoAlt
+  ) {
+    console.log(
+      `Alerta ativo para 5 cores, primeira tentativa (G0). Cor alvo: ${corAlvo5}`
+    );
+
+    if (res.numero === 0) {
+      totalZeros++;
+      totalGreensCor5++;
+      await enviarTelegram(
+        `🟢 5 CORES: Número 0 caiu! ✅ Green para estratégia de 5 cores\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        "CINCO_CORES"
+      );
+
+      // Marcar este número como vencedor
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        dataHora: new Date(),
+        estrategia: "cor5",
+      };
+
+      resetarAlertaCincoCores();
+    } else if (res.cor === corAlvo5) {
+      totalGreensCor5++;
+      await enviarTelegram(
+        `🟢 5 CORES: ${capitalize(corAlvo5)} [${
+          res.numero
+        }], ✅ Green para estratégia de 5 cores!\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        "CINCO_CORES"
+      );
+
+      // Marcar este número como vencedor
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        dataHora: new Date(),
+        estrategia: "cor5",
+      };
+
+      resetarAlertaCincoCores();
+    } else {
+      await enviarTelegram(
+        `🔄 5 CORES: ${capitalize(res.cor)} [${
+          res.numero
+        }], vamos para o G1 na estratégia de 5 cores...`,
+        "CINCO_CORES"
+      );
+      rodadaG0Cor5 = res;
+      console.log(
+        "Primeira tentativa falhou, indo para G1 na estratégia de 5 cores"
+      );
+    }
+  }
+  // Segunda rodada após detectar padrão para 5 cores (G1)
+  else if (alertaAtivo && corAlvo5 && rodadaG0Cor5 && !colunaAlvo && !duziaAlvo && !corAlvo && !corAlvoAlt) {
+    console.log("Processando G1 para estratégia de 5 cores");
+
+    if (res.numero === 0) {
+      totalZeros++;
+      totalGreensCor5++;
+      await enviarTelegram(
+        `🟢 5 CORES: Número 0 caiu! ✅ Green no G1 para estratégia de 5 cores\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        "CINCO_CORES"
+      );
+
+      // Marcar este número como vencedor
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        dataHora: new Date(),
+        estrategia: "cor5",
+      };
+
+      resetarAlertaCincoCores();
+    } else if (res.cor === corAlvo5) {
+      totalGreensCor5++;
+      await enviarTelegram(
+        `🟢 5 CORES: ${capitalize(corAlvo5)} [${
+          res.numero
+        }], ✅ Green no G1 para estratégia de 5 cores!\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        "CINCO_CORES"
+      );
+
+      // Marcar este número como vencedor
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        dataHora: new Date(),
+        estrategia: "cor5",
+      };
+
+      resetarAlertaCincoCores();
+    } else {
+      totalRedsCor5++;
+      await enviarTelegram(
+        `❌ 5 CORES: ${capitalize(res.cor)} [${
+          res.numero
+        }], ❌ Red/perca na estratégia de 5 cores\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        "CINCO_CORES"
+      );
+
+      // Marcar este número para saber que a última derrota foi na estratégia de 5 cores
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        estrategia: "cor5",
+        dataHora: new Date(),
+      };
+
+      resetarAlertaCincoCores();
+    }
+  }
+}
+
+// Função para resetar alerta de 5 cores
+function resetarAlertaCincoCores() {
+  console.log("Resetando alerta de 5 cores");
+  if (corAlvo5) {
+    alertaAtivo = false;
+    corAlvo5 = null;
+    rodadaG0Cor5 = null;
+
+    console.log("Estratégia de 5 cores resetada após vitória/derrota");
+  }
+}
+
+// Estratégia baseada em 3 cores seguidas COM ALTERNÂNCIA
+async function processarEstrategiaCorresAlternadas(res) {
+  // Verifica se há um padrão de 3 cores iguais consecutivas, apenas nos ciclos permitidos
+  if (!alertaAtivo && !corAlvo && !colunaAlvo && !duziaAlvo && !corAlvo5 && !corAlvoAlt && historico.length >= 3) {
+    // Verifica se deve alternar (0 = enviar, 1 = não enviar, 2 = enviar...)
+    if (contadorAlternancia % 2 === 0) {
+      console.log("Ciclo de alternância permitido para verificar padrão de 3 cores");
+      
+      // Analisar da direita para a esquerda
+      const sequencia = [historico[2], historico[1], historico[0]];
+      const [direita, meio, esquerda] = sequencia;
+      
+      console.log(`Analisando sequência alternada da direita para a esquerda: ${direita.numero} (${direita.cor}), ${meio.numero} (${meio.cor}), ${esquerda.numero} (${esquerda.cor})`);
+      
+      // Verificar se há 3 cores iguais
+      if (direita.cor === meio.cor && meio.cor === esquerda.cor && direita.cor !== "verde") {
+        alertaAtivo = true;
+        corAlvoAlt = direita.cor;
+        await enviarTelegram(
+          `⚠️ ESTRATÉGIA ALTERNADA: 3 ${corAlvoAlt}s seguidos (ciclo ${contadorAlternancia})...\nAguardando próxima rodada...`,
+          "TRES_CORES_ALTERNADO"
+        );
+        console.log(`Alerta ativado para cor alternada! Cor alvo: ${corAlvoAlt}, Ciclo: ${contadorAlternancia}`);
+      }
+    } else {
+      console.log(`Ciclo de alternância ${contadorAlternancia} - ignorando padrão de 3 cores`);
+    }
+  }
+  // Primeira rodada após detectar padrão alternado (G0)
+  else if (
+    alertaAtivo &&
+    corAlvoAlt &&
+    rodadaG0CorAlt === null &&
+    !colunaAlvo &&
+    !duziaAlvo &&
+    !corAlvo &&
+    !corAlvo5
+  ) {
+    console.log(
+      `Alerta ativo para cor alternada, primeira tentativa (G0). Cor alvo: ${corAlvoAlt}`
+    );
+
+    if (res.numero === 0) {
+      totalZeros++;
+      totalGreensCorAlt++;
+      await enviarTelegram(
+        `🟢 ALTERNADA: Número 0 caiu! ✅ Green para estratégia alternada\n📊 Alternada: Greens: ${totalGreensCorAlt} | Reds: ${totalRedsCorAlt} | Zeros: ${totalZeros}`,
+        "TRES_CORES_ALTERNADO"
+      );
+
+      // Marcar este número como vencedor
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        dataHora: new Date(),
+        estrategia: "corAlt",
+      };
+
+      // Incrementar contador de alternância após vitória/derrota
+      contadorAlternancia++;
+      resetarAlertaCoresAlternadas();
+    } else if (res.cor === corAlvoAlt) {
+      totalGreensCorAlt++;
+      await enviarTelegram(
+        `🟢 ALTERNADA: ${capitalize(corAlvoAlt)} [${
+          res.numero
+        }], ✅ Green para estratégia alternada!\n📊 Alternada: Greens: ${totalGreensCorAlt} | Reds: ${totalRedsCorAlt} | Zeros: ${totalZeros}`,
+        "TRES_CORES_ALTERNADO"
+      );
+
+      // Marcar este número como vencedor
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        dataHora: new Date(),
+        estrategia: "corAlt",
+      };
+
+      // Incrementar contador de alternância após vitória/derrota
+      contadorAlternancia++;
+      resetarAlertaCoresAlternadas();
+    } else {
+      await enviarTelegram(
+        `🔄 ALTERNADA: ${capitalize(res.cor)} [${
+          res.numero
+        }], vamos para o G1 na estratégia alternada...`,
+        "TRES_CORES_ALTERNADO"
+      );
+      rodadaG0CorAlt = res;
+      console.log(
+        "Primeira tentativa falhou, indo para G1 na estratégia alternada"
+      );
+    }
+  }
+  // Segunda rodada após detectar padrão alternado (G1)
+  else if (alertaAtivo && corAlvoAlt && rodadaG0CorAlt && !colunaAlvo && !duziaAlvo && !corAlvo && !corAlvo5) {
+    console.log("Processando G1 para estratégia alternada");
+
+    if (res.numero === 0) {
+      totalZeros++;
+      totalGreensCorAlt++;
+      await enviarTelegram(
+        `🟢 ALTERNADA: Número 0 caiu! ✅ Green no G1 para estratégia alternada\n📊 Alternada: Greens: ${totalGreensCorAlt} | Reds: ${totalRedsCorAlt} | Zeros: ${totalZeros}`,
+        "TRES_CORES_ALTERNADO"
+      );
+
+      // Marcar este número como vencedor
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        dataHora: new Date(),
+        estrategia: "corAlt",
+      };
+
+      // Incrementar contador de alternância após vitória/derrota
+      contadorAlternancia++;
+      resetarAlertaCoresAlternadas();
+    } else if (res.cor === corAlvoAlt) {
+      totalGreensCorAlt++;
+      await enviarTelegram(
+        `🟢 ALTERNADA: ${capitalize(corAlvoAlt)} [${
+          res.numero
+        }], ✅ Green no G1 para estratégia alternada!\n📊 Alternada: Greens: ${totalGreensCorAlt} | Reds: ${totalRedsCorAlt} | Zeros: ${totalZeros}`,
+        "TRES_CORES_ALTERNADO"
+      );
+
+      // Marcar este número como vencedor
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        dataHora: new Date(),
+        estrategia: "corAlt",
+      };
+
+      // Incrementar contador de alternância após vitória/derrota
+      contadorAlternancia++;
+      resetarAlertaCoresAlternadas();
+    } else {
+      totalRedsCorAlt++;
+      await enviarTelegram(
+        `❌ ALTERNADA: ${capitalize(res.cor)} [${
+          res.numero
+        }], ❌ Red/perca na estratégia alternada\n📊 Alternada: Greens: ${totalGreensCorAlt} | Reds: ${totalRedsCorAlt} | Zeros: ${totalZeros}`,
+        "TRES_CORES_ALTERNADO"
+      );
+
+      // Marcar este número para saber que a última derrota foi na estratégia alternada
+      ultimaVitoria = {
+        numero: res.numero,
+        cor: res.cor,
+        estrategia: "corAlt",
+        dataHora: new Date(),
+      };
+
+      // Incrementar contador de alternância após vitória/derrota
+      contadorAlternancia++;
+      resetarAlertaCoresAlternadas();
+    }
+  }
+}
+
+// Função para resetar alerta de cores alternadas
+function resetarAlertaCoresAlternadas() {
+  console.log("Resetando alerta de cores alternadas");
+  if (corAlvoAlt) {
+    alertaAtivo = false;
+    corAlvoAlt = null;
+    rodadaG0CorAlt = null;
+
+    console.log("Estratégia de cores alternadas resetada após vitória/derrota");
+  }
+}
+
+// Função para resetar alerta de cores (estratégia original de 3 cores)
 function resetarAlertaCores() {
   console.log("Resetando alerta de cores");
   if (corAlvo) {
@@ -516,6 +946,184 @@ function resetarAlertaCores() {
     rodadaG0Cor = null;
 
     console.log("Estratégia de cores resetada após vitória/derrota");
+  }
+}
+
+// Processa o último resultado e atualiza as estratégias
+async function processarResultado(res) {
+  console.log(`Processando resultado: ${res.numero} (${res.cor})`);
+  contadorRodadas++;
+
+  // Log detalhado do estado atual para depuração
+  console.log(`--- ESTADO ATUAL ---`);
+  console.log(`Alerta ativo: ${alertaAtivo}`);
+  console.log(`Cor alvo (3 cores): ${corAlvo}`);
+  console.log(`Cor alvo (5 cores): ${corAlvo5}`);
+  console.log(`Cor alvo (alternada): ${corAlvoAlt}`);
+  console.log(`Coluna alvo: ${colunaAlvo ? colunaAlvo.join(",") : "null"}`);
+  console.log(`Dúzia alvo: ${duziaAlvo ? duziaAlvo.join(",") : "null"}`);
+  console.log(`Última vitória: ${JSON.stringify(ultimaVitoria)}`);
+  console.log(`Total números no histórico: ${historico.length}`);
+  console.log(`Total números em ultimosOitoNumeros: ${ultimosOitoNumeros.length}`);
+  console.log(`Contador de alternância: ${contadorAlternancia}`);
+  console.log(`-------------------`);
+
+  // Processa estratégia de 3 cores seguidas
+  await processarEstrategiaCores(res);
+  
+  // Processa estratégia de 5 cores seguidas
+  await processarEstrategiaCincoCorres(res);
+  
+  // Processa estratégia de 3 cores alternadas
+  await processarEstrategiaCorresAlternadas(res);
+
+  // Processa estratégia de colunas
+  await processarEstrategiaColunas(res);
+
+  // Processa estratégia de dúzias
+  await processarEstrategiaDuzias(res);
+
+  // Envia resumo a cada 100 rodadas para o grupo principal
+  if (contadorRodadas % 100 === 0) {
+    await enviarResumo();
+  }
+
+  // Envia relatório detalhado a cada 200 rodadas para o grupo principal
+  if (contadorRodadas % 200 === 0) {
+    await enviarRelatorioDetalhado();
+  }
+}
+
+// Envia resumo das estatísticas
+async function enviarResumo() {
+  await enviarTelegram(`📊 RESUMO PARCIAL (últimas ${contadorRodadas} rodadas):
+✅ 3 CORES: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} 
+✅ 5 CORES: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5}
+✅ ALTERNADA: Greens: ${totalGreensCorAlt} | Reds: ${totalRedsCorAlt}
+✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} 
+✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}
+🟢 Total de Zeros: ${totalZeros}
+📈 Total de rodadas: ${contadorRodadas}
+🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
+⚫ Maior sequência de pretos: ${maiorSequenciaPreto}`,
+    "PRINCIPAL"
+  );
+}
+
+// Função para relatório detalhado a cada 200 rodadas
+async function enviarRelatorioDetalhado() {
+  await enviarTelegram(`🔍 RELATÓRIO DETALHADO (RODADA #${contadorRodadas})
+
+🎲 ESTATÍSTICAS DE 3 CORES:
+✅ Greens: ${totalGreensCor} (${Math.round(
+    (totalGreensCor / (totalGreensCor + totalRedsCor || 1)) * 100
+  )}% de aproveitamento)
+❌ Reds: ${totalRedsCor}
+
+🎲 ESTATÍSTICAS DE 5 CORES:
+✅ Greens: ${totalGreensCor5} (${Math.round(
+    (totalGreensCor5 / (totalGreensCor5 + totalRedsCor5 || 1)) * 100
+  )}% de aproveitamento)
+❌ Reds: ${totalRedsCor5}
+
+🎲 ESTATÍSTICAS DE ALTERNADA:
+✅ Greens: ${totalGreensCorAlt} (${Math.round(
+    (totalGreensCorAlt / (totalGreensCorAlt + totalRedsCorAlt || 1)) * 100
+  )}% de aproveitamento)
+❌ Reds: ${totalRedsCorAlt}
+
+🎲 ESTATÍSTICAS DE COLUNAS:
+✅ Greens: ${totalGreensColuna} (${Math.round(
+    (totalGreensColuna / (totalGreensColuna + totalRedsColuna || 1)) * 100
+  )}% de aproveitamento)
+❌ Reds: ${totalRedsColuna}
+
+🎲 ESTATÍSTICAS DE DÚZIAS:
+✅ Greens: ${totalGreensDuzia} (${Math.round(
+    (totalGreensDuzia / (totalGreensDuzia + totalRedsDuzia || 1)) * 100
+  )}% de aproveitamento)
+❌ Reds: ${totalRedsDuzia}
+
+🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
+⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
+🟢 Total de Zeros: ${totalZeros}
+📈 Total de rodadas analisadas: ${contadorRodadas}
+
+📱 Bot monitorando 24/7 - Mantenha as apostas responsáveis!`,
+    "PRINCIPAL"
+  );
+}
+
+// Adicione esta nova função para enviar o relatório diário e reiniciar contadores
+async function enviarRelatorioDiarioEReiniciar() {
+  const hoje = new Date();
+  const dataFormatada = hoje.toLocaleDateString('pt-BR', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric' 
+  });
+  
+  await enviarTelegram(`📅 RELATÓRIO FINAL DO DIA - ${dataFormatada}
+
+🎲 RESUMO DAS ÚLTIMAS 24 HORAS:
+✅ 3 CORES: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} 
+✅ 5 CORES: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5}
+✅ ALTERNADA: Greens: ${totalGreensCorAlt} | Reds: ${totalRedsCorAlt}
+✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} 
+✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}
+🟢 Total de Zeros: ${totalZeros}
+📈 Total de rodadas analisadas: ${contadorRodadas}
+
+🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
+⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
+
+💯 TAXA DE APROVEITAMENTO:
+🎯 3 Cores: ${Math.round((totalGreensCor / (totalGreensCor + totalRedsCor || 1)) * 100)}%
+🎯 5 Cores: ${Math.round((totalGreensCor5 / (totalGreensCor5 + totalRedsCor5 || 1)) * 100)}%
+🎯 Alternada: ${Math.round((totalGreensCorAlt / (totalGreensCorAlt + totalRedsCorAlt || 1)) * 100)}%
+🎯 Colunas: ${Math.round((totalGreensColuna / (totalGreensColuna + totalRedsColuna || 1)) * 100)}%
+🎯 Dúzias: ${Math.round((totalGreensDuzia / (totalGreensDuzia + totalRedsDuzia || 1)) * 100)}%
+
+🔄 Contadores reiniciados para o novo dia.
+📱 Bot continua monitorando 24/7 - Boas apostas!`,
+    "PRINCIPAL"
+  );
+
+  // Reinicia todos os contadores para o novo dia
+  totalGreensCor = 0;
+  totalRedsCor = 0;
+  totalGreensCor5 = 0;
+  totalRedsCor5 = 0;
+  totalGreensCorAlt = 0;
+  totalRedsCorAlt = 0;
+  totalGreensColuna = 0;
+  totalRedsColuna = 0;
+  totalGreensDuzia = 0;
+  totalRedsDuzia = 0;
+  totalZeros = 0;
+  contadorRodadas = 0;
+  
+  // Não reiniciamos as sequências máximas, pois são recordes históricos
+  // maiorSequenciaVermelho = 0;
+  // maiorSequenciaPreto = 0;
+  
+  console.log("Contadores reiniciados para o novo dia.");
+}
+
+// Função para verificar a mudança de dia
+function verificarMudancaDeDia() {
+  const dataAtual = new Date();
+  const diaAtual = dataAtual.getDate();
+  
+  // Se o dia mudou
+  if (diaAtual !== ultimoDiaVerificado) {
+    console.log(`Dia mudou de ${ultimoDiaVerificado} para ${diaAtual}. Enviando relatório diário e reiniciando contadores.`);
+    
+    // Envia o relatório do dia anterior e reinicia contadores
+    enviarRelatorioDiarioEReiniciar();
+    
+    // Atualiza o dia verificado
+    ultimoDiaVerificado = diaAtual;
   }
 }
 
@@ -542,6 +1150,8 @@ async function processarEstrategiaColunas(res) {
     !corAlvo &&
     !colunaAlvo &&
     !duziaAlvo &&
+    !corAlvo5 &&
+    !corAlvoAlt &&
     ultimosOitoNumeros.length === 8
   ) {
     // Verificar se temos uma última vitória recente na estratégia de colunas
@@ -579,7 +1189,9 @@ async function processarEstrategiaColunas(res) {
         const colunasPresentes = colunasDistintas.join(" e ");
 
         await enviarTelegram(`⚠️ ESTRATÉGIA DE COLUNAS: Os últimos 8 números caíram apenas nas colunas ${colunasPresentes}.
-🎯 Entrada sugerida nas colunas ${colunasPresentes} na próxima rodada!`);
+🎯 Entrada sugerida nas colunas ${colunasPresentes} na próxima rodada!`,
+          "COLUNAS_DUZIAS"
+        );
 
         console.log(
           `Alerta de colunas ativado! Colunas alvo: ${colunasPresentes}`
@@ -587,14 +1199,15 @@ async function processarEstrategiaColunas(res) {
       }
     }
   }
-
   // Primeira rodada após detectar padrão para colunas (G0)
   else if (
     alertaAtivo &&
     colunaAlvo &&
     rodadaG0Coluna === null &&
     !corAlvo &&
-    !duziaAlvo
+    !duziaAlvo &&
+    !corAlvo5 &&
+    !corAlvoAlt
   ) {
     console.log(
       `Alerta ativo para coluna, primeira tentativa (G0). Colunas alvo: ${colunaAlvo.join(
@@ -606,7 +1219,8 @@ async function processarEstrategiaColunas(res) {
       totalZeros++;
       totalGreensColuna++;
       await enviarTelegram(
-        `🟢 COLUNAS: Número 0 caiu! ✅ Green para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`
+        `🟢 COLUNAS: Número 0 caiu! ✅ Green para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Marcar este número como vencedor
@@ -623,7 +1237,8 @@ async function processarEstrategiaColunas(res) {
       await enviarTelegram(
         `🟢 COLUNAS:  [${res.numero}] coluna ${getColuna(
           res.numero
-        )}! ✅ Green para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`
+        )}! ✅ Green para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Marcar este número como vencedor
@@ -639,7 +1254,8 @@ async function processarEstrategiaColunas(res) {
       await enviarTelegram(
         `🔄 COLUNAS:  [${res.numero}]  coluna ${getColuna(
           res.numero
-        )}, vamos para o G1 na estratégia de coluna...`
+        )}, vamos para o G1 na estratégia de coluna...`,
+        "COLUNAS_DUZIAS"
       );
       rodadaG0Coluna = res;
       console.log(
@@ -653,7 +1269,9 @@ async function processarEstrategiaColunas(res) {
     colunaAlvo &&
     rodadaG0Coluna &&
     !corAlvo &&
-    !duziaAlvo
+    !duziaAlvo &&
+    !corAlvo5 &&
+    !corAlvoAlt
   ) {
     console.log("Processando G1 para estratégia de coluna");
 
@@ -661,7 +1279,8 @@ async function processarEstrategiaColunas(res) {
       totalZeros++;
       totalGreensColuna++;
       await enviarTelegram(
-        `🟢 COLUNAS: Número 0 caiu! ✅ Green no G1 para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`
+        `🟢 COLUNAS: Número 0 caiu! ✅ Green no G1 para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Marcar este número como vencedor
@@ -678,7 +1297,8 @@ async function processarEstrategiaColunas(res) {
       await enviarTelegram(
         `🟢 COLUNAS:  [${res.numero}] coluna ${getColuna(
           res.numero
-        )}! ✅ Green no G1 para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`
+        )}! ✅ Green no G1 para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Marcar este número como vencedor
@@ -695,7 +1315,8 @@ async function processarEstrategiaColunas(res) {
       await enviarTelegram(
         `❌ COLUNAS:  [${res.numero}]  coluna ${getColuna(
           res.numero
-        )}. ❌ Red/perca na estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`
+        )}. ❌ Red/perca na estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Após uma derrota, também marcaremos o estado para evitar contagens imediatas
@@ -709,7 +1330,7 @@ async function processarEstrategiaColunas(res) {
   }
 }
 
-// Função para resetar alerta de colunas - MODIFICADA
+// Função para resetar alerta de colunas
 function resetarAlertaColunas() {
   console.log("Resetando alerta de colunas");
   if (colunaAlvo) {
@@ -734,6 +1355,8 @@ async function processarEstrategiaDuzias(res) {
     !corAlvo &&
     !colunaAlvo &&
     !duziaAlvo &&
+    !corAlvo5 &&
+    !corAlvoAlt &&
     ultimosOitoNumeros.length === 8
   ) {
     // Verificar se temos uma última vitória recente na estratégia de dúzias
@@ -771,7 +1394,9 @@ async function processarEstrategiaDuzias(res) {
         const duziasPresentes = duziasDistintas.join(" e ");
 
         await enviarTelegram(`⚠️ ESTRATÉGIA DE DÚZIAS: Os últimos 8 números caíram apenas nas dúzias ${duziasPresentes}.
-🎯 Entrada sugerida nas dúzias ${duziasPresentes} na próxima rodada!`);
+🎯 Entrada sugerida nas dúzias ${duziasPresentes} na próxima rodada!`,
+          "COLUNAS_DUZIAS"
+        );
 
         console.log(
           `Alerta de dúzias ativado! Dúzias alvo: ${duziasPresentes}`
@@ -779,14 +1404,15 @@ async function processarEstrategiaDuzias(res) {
       }
     }
   }
-
   // Primeira rodada após detectar padrão para dúzias (G0)
   else if (
     alertaAtivo &&
     duziaAlvo &&
     rodadaG0Duzia === null &&
     !corAlvo &&
-    !colunaAlvo
+    !colunaAlvo &&
+    !corAlvo5 &&
+    !corAlvoAlt
   ) {
     console.log(
       `Alerta ativo para dúzia, primeira tentativa (G0). Dúzias alvo: ${duziaAlvo.join(
@@ -798,7 +1424,8 @@ async function processarEstrategiaDuzias(res) {
       totalZeros++;
       totalGreensDuzia++;
       await enviarTelegram(
-        `🟢 DÚZIAS: Número 0 caiu! ✅ Green para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`
+        `🟢 DÚZIAS: Número 0 caiu! ✅ Green para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Marcar este número como vencedor
@@ -815,7 +1442,8 @@ async function processarEstrategiaDuzias(res) {
       await enviarTelegram(
         `🟢 DÚZIAS: Número ${res.numero} na dúzia ${getDuzia(
           res.numero
-        )}! ✅ Green para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`
+        )}! ✅ Green para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Marcar este número como vencedor
@@ -831,7 +1459,8 @@ async function processarEstrategiaDuzias(res) {
       await enviarTelegram(
         `🔄 DÚZIAS: Número ${res.numero} na dúzia ${getDuzia(
           res.numero
-        )}, vamos para o G1 na estratégia de dúzia...`
+        )}, vamos para o G1 na estratégia de dúzia...`,
+        "COLUNAS_DUZIAS"
       );
       rodadaG0Duzia = res;
       console.log(
@@ -845,7 +1474,9 @@ async function processarEstrategiaDuzias(res) {
     duziaAlvo &&
     rodadaG0Duzia &&
     !corAlvo &&
-    !colunaAlvo
+    !colunaAlvo &&
+    !corAlvo5 &&
+    !corAlvoAlt
   ) {
     console.log("Processando G1 para estratégia de dúzia");
 
@@ -853,7 +1484,8 @@ async function processarEstrategiaDuzias(res) {
       totalZeros++;
       totalGreensDuzia++;
       await enviarTelegram(
-        `🟢 DÚZIAS: Número 0 caiu! ✅ Green no G1 para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`
+        `🟢 DÚZIAS: Número 0 caiu! ✅ Green no G1 para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Marcar este número como vencedor
@@ -870,7 +1502,8 @@ async function processarEstrategiaDuzias(res) {
       await enviarTelegram(
         `🟢 DÚZIAS: Número ${res.numero} na dúzia ${getDuzia(
           res.numero
-        )}! ✅ Green no G1 para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`
+        )}! ✅ Green no G1 para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Marcar este número como vencedor
@@ -887,7 +1520,8 @@ async function processarEstrategiaDuzias(res) {
       await enviarTelegram(
         `❌ DÚZIAS: Número ${res.numero} na dúzia ${getDuzia(
           res.numero
-        )}. ❌ Red/perca na estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`
+        )}. ❌ Red/perca na estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        "COLUNAS_DUZIAS"
       );
 
       // Após uma derrota, também marcaremos o estado para evitar contagens imediatas
@@ -901,7 +1535,7 @@ async function processarEstrategiaDuzias(res) {
   }
 }
 
-// Função para resetar alerta de dúzias - MODIFICADA
+// Função para resetar alerta de dúzias
 function resetarAlertaDuzias() {
   console.log("Resetando alerta de dúzias");
   if (duziaAlvo) {
@@ -918,197 +1552,59 @@ function resetarAlertaDuzias() {
   }
 }
 
-// Processa o último resultado e atualiza as estratégias
-async function processarResultado(res) {
-  console.log(`Processando resultado: ${res.numero} (${res.cor})`);
-  contadorRodadas++;
-
-  // Log detalhado do estado atual para depuração
-  console.log(`--- ESTADO ATUAL ---`);
-  console.log(`Alerta ativo: ${alertaAtivo}`);
-  console.log(`Cor alvo: ${corAlvo}`);
-  console.log(`Coluna alvo: ${colunaAlvo ? colunaAlvo.join(",") : "null"}`);
-  console.log(`Dúzia alvo: ${duziaAlvo ? duziaAlvo.join(",") : "null"}`);
-  console.log(`Última vitória: ${JSON.stringify(ultimaVitoria)}`);
-  console.log(`Total números no histórico: ${historico.length}`);
-  console.log(
-    `Total números em ultimosOitoNumeros: ${ultimosOitoNumeros.length}`
-  );
-  console.log(`-------------------`);
-
-  // Processa estratégia de cores
-  await processarEstrategiaCores(res);
-
-  // Processa estratégia de colunas
-  await processarEstrategiaColunas(res);
-
-  // Processa estratégia de dúzias
-  await processarEstrategiaDuzias(res);
-
-  // Envia resumo a cada 100 rodadas
-  if (contadorRodadas % 100 === 0) {
-    await enviarResumo();
-  }
-
-  // Envia relatório detalhado a cada 200 rodadas
-  if (contadorRodadas % 200 === 0) {
-    await enviarRelatorioDetalhado();
-  }
-}
-
-// Envia mensagem para o Telegram
-async function enviarTelegram(mensagem) {
-  try {
-    console.log(`Enviando para Telegram: ${mensagem}`);
-    const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
-
-    const response = await axios.post(url, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: mensagem,
-    });
-
-    console.log("Mensagem enviada com sucesso");
-    return response;
-  } catch (err) {
-    console.error("Erro ao enviar mensagem para o Telegram:", err.message);
-    if (err.response) {
-      console.error("Resposta do Telegram:", err.response.data);
-    }
-  }
-}
-
-// Envia resumo das estatísticas
-async function enviarResumo() {
-  await enviarTelegram(`📊 RESUMO PARCIAL (últimas ${contadorRodadas} rodadas):
-✅ CORES: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} 
-✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} 
-✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}
-🟢 Total de Zeros: ${totalZeros}
-📈 Total de rodadas: ${contadorRodadas}
-🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
-⚫ Maior sequência de pretos: ${maiorSequenciaPreto}`);
-}
-
-// Função para relatório detalhado a cada 200 rodadas
-async function enviarRelatorioDetalhado() {
-  await enviarTelegram(`🔍 RELATÓRIO DETALHADO (RODADA #${contadorRodadas})
-
-🎲 ESTATÍSTICAS DE CORES:
-✅ Greens: ${totalGreensCor} (${Math.round(
-    (totalGreensCor / (totalGreensCor + totalRedsCor || 1)) * 100
-  )}% de aproveitamento)
-❌ Reds: ${totalRedsCor}
-🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
-⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
-
-🎲 ESTATÍSTICAS DE COLUNAS:
-✅ Greens: ${totalGreensColuna} (${Math.round(
-    (totalGreensColuna / (totalGreensColuna + totalRedsColuna || 1)) * 100
-  )}% de aproveitamento)
-❌ Reds: ${totalRedsColuna}
-
-🎲 ESTATÍSTICAS DE DÚZIAS:
-✅ Greens: ${totalGreensDuzia} (${Math.round(
-    (totalGreensDuzia / (totalGreensDuzia + totalRedsDuzia || 1)) * 100
-  )}% de aproveitamento)
-❌ Reds: ${totalRedsDuzia}
-
-🟢 Total de Zeros: ${totalZeros}
-📈 Total de rodadas analisadas: ${contadorRodadas}
-
-📱 Bot monitorando 24/7 - Mantenha as apostas responsáveis!`);
-}
-
-// Adicione esta nova função para enviar o relatório diário e reiniciar contadores
-async function enviarRelatorioDiarioEReiniciar() {
-  const hoje = new Date();
-  const dataFormatada = hoje.toLocaleDateString('pt-BR', { 
-    day: '2-digit', 
-    month: '2-digit', 
-    year: 'numeric' 
-  });
-  
-  await enviarTelegram(`📅 RELATÓRIO FINAL DO DIA - ${dataFormatada}
-
-🎲 RESUMO DAS ÚLTIMAS 24 HORAS:
-✅ CORES: Greens: ${totalGreensCor} | Reds: ${totalRedsCor} 
-✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} 
-✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}
-🟢 Total de Zeros: ${totalZeros}
-📈 Total de rodadas analisadas: ${contadorRodadas}
-
-🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
-⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
-
-💯 TAXA DE APROVEITAMENTO:
-🎯 Cores: ${Math.round((totalGreensCor / (totalGreensCor + totalRedsCor || 1)) * 100)}%
-🎯 Colunas: ${Math.round((totalGreensColuna / (totalGreensColuna + totalRedsColuna || 1)) * 100)}%
-🎯 Dúzias: ${Math.round((totalGreensDuzia / (totalGreensDuzia + totalRedsDuzia || 1)) * 100)}%
-
-🔄 Contadores reiniciados para o novo dia.
-📱 Bot continua monitorando 24/7 - Boas apostas!`);
-
-  // Reinicia todos os contadores para o novo dia
-  totalGreensCor = 0;
-  totalRedsCor = 0;
-  totalGreensColuna = 0;
-  totalRedsColuna = 0;
-  totalGreensDuzia = 0;
-  totalRedsDuzia = 0;
-  totalZeros = 0;
-  contadorRodadas = 0;
-  
-  // Não reiniciamos as sequências máximas, pois são recordes históricos
-  // Se quiser reiniciar também, descomente as linhas abaixo
-  /*
-  maiorSequenciaVermelho = 0;
-  maiorSequenciaPreto = 0;
-  */
-  
-  console.log("Contadores reiniciados para o novo dia.");
-}
-
-// Função para verificar a mudança de dia
-function verificarMudancaDeDia() {
-  const dataAtual = new Date();
-  const diaAtual = dataAtual.getDate();
-  
-  // Se o dia mudou
-  if (diaAtual !== ultimoDiaVerificado) {
-    console.log(`Dia mudou de ${ultimoDiaVerificado} para ${diaAtual}. Enviando relatório diário e reiniciando contadores.`);
-    
-    // Envia o relatório do dia anterior e reinicia contadores
-    enviarRelatorioDiarioEReiniciar();
-    
-    // Atualiza o dia verificado
-    ultimoDiaVerificado = diaAtual;
-  }
-}
-
-
 // Inicia o bot
 (async function () {
   try {
     console.log("🎲 Bot da Roleta iniciado!");
     console.log("🔍 Monitorando resultados da Lightning Roulette...");
 
-    // Envia mensagem inicial
+    // Envia mensagem inicial para todos os grupos
     await enviarTelegram(
-      "🎲 Bot da Roleta Lightning iniciado! Monitorando resultados..."
+      "🎲 Bot da Roleta Lightning iniciado! Monitorando resultados...",
+      "PRINCIPAL"
+    );
+    
+    await enviarTelegram(
+      "🎲 Bot de Colunas e Dúzias iniciado! Monitorando resultados...",
+      "COLUNAS_DUZIAS"
+    );
+    
+    await enviarTelegram(
+      "🎲 Bot de 3 Cores Seguidas iniciado! Monitorando resultados...",
+      "TRES_CORES"
+    );
+    
+    await enviarTelegram(
+      "🎲 Bot de 5 Cores Seguidas iniciado! Monitorando resultados...",
+      "CINCO_CORES"
+    );
+    
+    await enviarTelegram(
+      "🎲 Bot de 3 Cores Alternadas iniciado! Monitorando resultados...",
+      "TRES_CORES_ALTERNADO"
     );
 
-    // Executa a primeira vez
-    await getRoletaResultado();
+    // Inicializar o navegador
+    await inicializarNavegador();
 
-    // Configura o intervalo para execução regular (a cada 15 segundos)
-    console.log("⏱️ Configurando intervalo de execução a cada 30 segundos");
-    setInterval(getRoletaResultado, 30000);
+    // Verificação contínua de resultados
+    console.log(`⏱️ Configurando verificação contínua a cada ${CONFIG.verificacaoIntervalo/1000} segundos`);
+    setInterval(verificarResultadosContinuamente, CONFIG.verificacaoIntervalo);
+    
+    // Atualiza a página periodicamente para dados frescos
+    console.log(`⏱️ Configurando atualização da página a cada ${CONFIG.atualizacaoPagina/60000} minutos`);
+    setInterval(atualizarPagina, CONFIG.atualizacaoPagina);
+    
+    // Configura reinício periódico do navegador para conservar memória
+    configurarReinicioNavegador();
+    
+    // Configura verificação de mudança de dia
     console.log("⏱️ Configurando verificação de mudança de dia a cada minuto");
-    setInterval(verificarMudancaDeDia, 60000); // Verifica a cada minuto
+    setInterval(verificarMudancaDeDia, 60000);
   } catch (err) {
     console.error("Erro fatal ao iniciar o bot:", err);
     // Tenta enviar mensagem de erro ao Telegram
-    enviarTelegram("❌ Erro fatal ao iniciar o bot. Verifique os logs.").catch(
+    enviarTelegram("❌ Erro fatal ao iniciar o bot. Verifique os logs.", "PRINCIPAL").catch(
       () => {
         console.error(
           "Também não foi possível enviar mensagem de erro ao Telegram"
@@ -1117,6 +1613,7 @@ function verificarMudancaDeDia() {
     );
   }
 })();
+
 
 // Inicia servidor Express para manter o bot vivo no Render
 const app = express();
