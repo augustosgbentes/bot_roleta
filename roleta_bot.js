@@ -16,6 +16,8 @@ let totalGreensCor5 = 0;
 let totalRedsCor5 = 0;
 let ultimaVitoriaCor5 = null;
 let alertaAtivoCor5 = false;
+let vitoriaConsecutivaCor5 = 0;
+let maiorVitoriaConsecutivaCor5 = 0;
 
 // Estratégia de 3 cores
 let corAlvo3 = null;
@@ -24,6 +26,8 @@ let totalGreensCor3 = 0;
 let totalRedsCor3 = 0;
 let ultimaVitoriaCor3 = null;
 let alertaAtivoCor3 = false;
+let vitoriaConsecutivaCor3 = 0;
+let maiorVitoriaConsecutivaCor3 = 0;
 
 // Estratégia de colunas
 let colunaAlvo = null;
@@ -31,6 +35,8 @@ let rodadaG0Coluna = null;
 let totalGreensColuna = 0;
 let totalRedsColuna = 0;
 let alertaAtivoColuna = false;
+let vitoriaConsecutivaColuna = 0;
+let maiorVitoriaConsecutivaColuna = 0;
 
 // Estratégia de dúzias
 let duziaAlvo = null;
@@ -38,9 +44,17 @@ let rodadaG0Duzia = null;
 let totalGreensDuzia = 0;
 let totalRedsDuzia = 0;
 let alertaAtivoDuzia = false;
+let vitoriaConsecutivaDuzia = 0;
+let maiorVitoriaConsecutivaDuzia = 0;
 
 // Contador de zeros
 let totalZeros = 0;
+
+// Contador de zeros específico para cada estratégia
+let zerosCor5 = 0;
+let zerosCor3 = 0;
+let zerosColuna = 0;
+let zerosDuzia = 0;
 
 // Rastreamento de sequências de cores
 let sequenciaAtualVermelho = 0;
@@ -547,9 +561,21 @@ async function processarEstrategia3Cores(res) {
     );
 
     if (res.numero === 0) {
-      totalZeros++;
+      totalZeros++; // Contador geral de zeros
+      zerosCor3++; // Contador específico de zeros para estratégia de 3 cores
+      vitoriaConsecutivaCor3++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaCor3 > maiorVitoriaConsecutivaCor3) {
+        maiorVitoriaConsecutivaCor3 = vitoriaConsecutivaCor3;
+      }
+
       await enviarTelegram(
-        `🟢 3 CORES (TRIO): Número 0 caiu! ✅ Green para estratégia de trio de cor\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${totalZeros}`,
+        `🟢 3 CORES (TRIO): Número 0 caiu! ✅ Green para estratégia de trio de cor [${vitoriaConsecutivaCor3} VITÓRIA${
+          vitoriaConsecutivaCor3 > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaCor3 > 1 ? "S" : ""
+        }]\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${zerosCor3}`,
         "trioCor"
       );
 
@@ -559,10 +585,21 @@ async function processarEstrategia3Cores(res) {
       // Resetar alerta
       resetarAlerta3Cores();
     } else if (res.cor === corAlvo3) {
+      vitoriaConsecutivaCor3++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaCor3 > maiorVitoriaConsecutivaCor3) {
+        maiorVitoriaConsecutivaCor3 = vitoriaConsecutivaCor3;
+      }
+
       await enviarTelegram(
         `🟢 3 CORES (TRIO): ${capitalize(corAlvo3)} [${
           res.numero
-        }], ✅ Green para estratégia de trio de cor!\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${totalZeros}`,
+        }], ✅ Green para estratégia de trio de cor! [${vitoriaConsecutivaCor3} VITÓRIA${
+          vitoriaConsecutivaCor3 > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaCor3 > 1 ? "S" : ""
+        }]\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${zerosCor3}`,
         "trioCor"
       );
 
@@ -589,9 +626,21 @@ async function processarEstrategia3Cores(res) {
     console.log("Processando G1 para estratégia de trio de cor");
 
     if (res.numero === 0) {
-      totalZeros++;
+      totalZeros++; // Contador geral de zeros
+      zerosCor3++; // Contador específico de zeros para estratégia de 3 cores
+      vitoriaConsecutivaCor3++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaCor3 > maiorVitoriaConsecutivaCor3) {
+        maiorVitoriaConsecutivaCor3 = vitoriaConsecutivaCor3;
+      }
+
       await enviarTelegram(
-        `🟢 3 CORES (TRIO): Número 0 caiu! ✅ Green no G1 para estratégia de trio de cor\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${totalZeros}`,
+        `🟢 3 CORES (TRIO): Número 0 caiu! ✅ Green no G1 para estratégia de trio de cor [${vitoriaConsecutivaCor3} VITÓRIA${
+          vitoriaConsecutivaCor3 > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaCor3 > 1 ? "S" : ""
+        }]\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${zerosCor3}`,
         "trioCor"
       );
 
@@ -601,10 +650,21 @@ async function processarEstrategia3Cores(res) {
       // Resetar alerta
       resetarAlerta3Cores();
     } else if (res.cor === corAlvo3) {
+      vitoriaConsecutivaCor3++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaCor3 > maiorVitoriaConsecutivaCor3) {
+        maiorVitoriaConsecutivaCor3 = vitoriaConsecutivaCor3;
+      }
+
       await enviarTelegram(
         `🟢 3 CORES (TRIO): ${capitalize(corAlvo3)} [${
           res.numero
-        }], ✅ Green no G1 para estratégia de trio de cor!\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${totalZeros}`,
+        }], ✅ Green no G1 para estratégia de trio de cor! [${vitoriaConsecutivaCor3} VITÓRIA${
+          vitoriaConsecutivaCor3 > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaCor3 > 1 ? "S" : ""
+        }]\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${zerosCor3}`,
         "trioCor"
       );
 
@@ -614,10 +674,12 @@ async function processarEstrategia3Cores(res) {
       // Resetar alerta
       resetarAlerta3Cores();
     } else {
+      vitoriaConsecutivaCor3 = 0; // Reseta contagem de vitórias consecutivas
+
       await enviarTelegram(
         `❌ 3 CORES (TRIO): ${capitalize(res.cor)} [${
           res.numero
-        }], ❌ Red/perca na estratégia de trio de cor\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${totalZeros}`,
+        }], ❌ Red/perca na estratégia de trio de cor\n📊 3 Cores: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${zerosCor3}`,
         "trioCor"
       );
 
@@ -725,6 +787,13 @@ async function processarEstrategia3Cores(res) {
 
 function registrarVitoria3Cores(res) {
   totalGreensCor3++;
+  vitoriaConsecutivaCor3++; // Incrementa contagem de vitórias consecutivas
+
+  // Atualiza o contador de maior sequência de vitórias
+  if (vitoriaConsecutivaCor3 > maiorVitoriaConsecutivaCor3) {
+    maiorVitoriaConsecutivaCor3 = vitoriaConsecutivaCor3;
+  }
+
   // Registrar a vitória
   ultimaVitoriaCor3 = {
     numero: res.numero,
@@ -748,9 +817,10 @@ function registrarVitoria3Cores(res) {
   );
 }
 
-// Função para registrar derrota na estratégia de 3 cores
 function registrarDerrota3Cores(res) {
   totalRedsCor3++;
+  vitoriaConsecutivaCor3 = 0; // Reseta contagem de vitórias consecutivas
+
   // Registrar a derrota
   ultimaVitoriaCor3 = {
     numero: res.numero,
@@ -830,10 +900,22 @@ async function processarEstrategia5Cores(res) {
     );
 
     if (res.numero === 0) {
-      totalZeros++;
+      totalZeros++; // Contador geral de zeros
+      zerosCor5++; // Contador específico de zeros para estratégia de 5 cores
       totalGreensCor5++;
+      vitoriaConsecutivaCor5++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaCor5 > maiorVitoriaConsecutivaCor5) {
+        maiorVitoriaConsecutivaCor5 = vitoriaConsecutivaCor5;
+      }
+
       await enviarTelegram(
-        `🟢 5 CORES: Número 0 caiu! ✅ Green para estratégia de 5 cores\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        `🟢 5 CORES: Número 0 caiu! ✅ Green para estratégia de 5 cores [${vitoriaConsecutivaCor5} VITÓRIA${
+          vitoriaConsecutivaCor5 > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaCor5 > 1 ? "S" : ""
+        }]\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${zerosCor5}`,
         "cor"
       );
 
@@ -844,10 +926,21 @@ async function processarEstrategia5Cores(res) {
       resetarAlerta5Cores();
     } else if (res.cor === corAlvo5) {
       totalGreensCor5++;
+      vitoriaConsecutivaCor5++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaCor5 > maiorVitoriaConsecutivaCor5) {
+        maiorVitoriaConsecutivaCor5 = vitoriaConsecutivaCor5;
+      }
+
       await enviarTelegram(
         `🟢 5 CORES: ${capitalize(corAlvo5)} [${
           res.numero
-        }], ✅ Green para estratégia de 5 cores!\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        }], ✅ Green para estratégia de 5 cores! [${vitoriaConsecutivaCor5} VITÓRIA${
+          vitoriaConsecutivaCor5 > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaCor5 > 1 ? "S" : ""
+        }]\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${zerosCor5}`,
         "cor"
       );
 
@@ -874,10 +967,22 @@ async function processarEstrategia5Cores(res) {
     console.log("Processando G1 para estratégia de 5 cores");
 
     if (res.numero === 0) {
-      totalZeros++;
+      totalZeros++; // Contador geral de zeros
+      zerosCor5++; // Contador específico de zeros para estratégia de 5 cores
       totalGreensCor5++;
+      vitoriaConsecutivaCor5++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaCor5 > maiorVitoriaConsecutivaCor5) {
+        maiorVitoriaConsecutivaCor5 = vitoriaConsecutivaCor5;
+      }
+
       await enviarTelegram(
-        `🟢 5 CORES: Número 0 caiu! ✅ Green no G1 para estratégia de 5 cores\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        `🟢 5 CORES: Número 0 caiu! ✅ Green no G1 para estratégia de 5 cores [${vitoriaConsecutivaCor5} VITÓRIA${
+          vitoriaConsecutivaCor5 > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaCor5 > 1 ? "S" : ""
+        }]\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${zerosCor5}`,
         "cor"
       );
 
@@ -888,10 +993,21 @@ async function processarEstrategia5Cores(res) {
       resetarAlerta5Cores();
     } else if (res.cor === corAlvo5) {
       totalGreensCor5++;
+      vitoriaConsecutivaCor5++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaCor5 > maiorVitoriaConsecutivaCor5) {
+        maiorVitoriaConsecutivaCor5 = vitoriaConsecutivaCor5;
+      }
+
       await enviarTelegram(
         `🟢 5 CORES: ${capitalize(corAlvo5)} [${
           res.numero
-        }], ✅ Green no G1 para estratégia de 5 cores!\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        }], ✅ Green no G1 para estratégia de 5 cores! [${vitoriaConsecutivaCor5} VITÓRIA${
+          vitoriaConsecutivaCor5 > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaCor5 > 1 ? "S" : ""
+        }]\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${zerosCor5}`,
         "cor"
       );
 
@@ -902,10 +1018,12 @@ async function processarEstrategia5Cores(res) {
       resetarAlerta5Cores();
     } else {
       totalRedsCor5++;
+      vitoriaConsecutivaCor5 = 0; // Reseta contagem de vitórias consecutivas
+
       await enviarTelegram(
         `❌ 5 CORES: ${capitalize(res.cor)} [${
           res.numero
-        }], ❌ Red/perca na estratégia de 5 cores\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${totalZeros}`,
+        }], ❌ Red/perca na estratégia de 5 cores\n📊 5 Cores: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${zerosCor5}`,
         "cor"
       );
 
@@ -1029,6 +1147,13 @@ async function processarEstrategia5Cores(res) {
 // Função para registrar vitória na estratégia de 5 cores
 function registrarVitoria5Cores(res) {
   totalGreensCor5++;
+  vitoriaConsecutivaCor5++; // Incrementa contagem de vitórias consecutivas
+
+  // Atualiza o contador de maior sequência de vitórias
+  if (vitoriaConsecutivaCor5 > maiorVitoriaConsecutivaCor5) {
+    maiorVitoriaConsecutivaCor5 = vitoriaConsecutivaCor5;
+  }
+
   // Registrar a vitória
   ultimaVitoriaCor5 = {
     numero: res.numero,
@@ -1052,9 +1177,10 @@ function registrarVitoria5Cores(res) {
   );
 }
 
-// Função para registrar derrota na estratégia de 5 cores
 function registrarDerrota5Cores(res) {
   totalRedsCor5++;
+  vitoriaConsecutivaCor5 = 0; // Reseta contagem de vitórias consecutivas
+
   // Registrar a derrota
   ultimaVitoriaCor5 = {
     numero: res.numero,
@@ -1179,10 +1305,22 @@ async function processarEstrategiaColunas(res) {
     );
 
     if (res.numero === 0) {
-      totalZeros++;
+      totalZeros++; // Contador geral de zeros
+      zerosColuna++; // Contador específico de zeros para estratégia de colunas
       totalGreensColuna++;
+      vitoriaConsecutivaColuna++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaColuna > maiorVitoriaConsecutivaColuna) {
+        maiorVitoriaConsecutivaColuna = vitoriaConsecutivaColuna;
+      }
+
       await enviarTelegram(
-        `🟢 COLUNAS: Número 0 caiu! ✅ Green para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        `🟢 COLUNAS: Número 0 caiu! ✅ Green para estratégia de coluna [${vitoriaConsecutivaColuna} VITÓRIA${
+          vitoriaConsecutivaColuna > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaColuna > 1 ? "S" : ""
+        }]\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} | Zeros: ${zerosColuna}`,
         "coluna"
       );
 
@@ -1207,10 +1345,21 @@ async function processarEstrategiaColunas(res) {
       resetarAlertaColunas();
     } else if (colunaAlvo.includes(getColuna(res.numero))) {
       totalGreensColuna++;
+      vitoriaConsecutivaColuna++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaColuna > maiorVitoriaConsecutivaColuna) {
+        maiorVitoriaConsecutivaColuna = vitoriaConsecutivaColuna;
+      }
+
       await enviarTelegram(
         `🟢 COLUNAS:  [${res.numero}] coluna ${getColuna(
           res.numero
-        )}! ✅ Green para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        )}! ✅ Green para estratégia de coluna [${vitoriaConsecutivaColuna} VITÓRIA${
+          vitoriaConsecutivaColuna > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaColuna > 1 ? "S" : ""
+        }]\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} | Zeros: ${zerosColuna}`,
         "coluna"
       );
 
@@ -1251,10 +1400,22 @@ async function processarEstrategiaColunas(res) {
     console.log("Processando G1 para estratégia de coluna");
 
     if (res.numero === 0) {
-      totalZeros++;
+      totalZeros++; // Contador geral de zeros
+      zerosColuna++; // Contador específico de zeros para estratégia de colunas
       totalGreensColuna++;
+      vitoriaConsecutivaColuna++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaColuna > maiorVitoriaConsecutivaColuna) {
+        maiorVitoriaConsecutivaColuna = vitoriaConsecutivaColuna;
+      }
+
       await enviarTelegram(
-        `🟢 COLUNAS: Número 0 caiu! ✅ Green no G1 para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        `🟢 COLUNAS: Número 0 caiu! ✅ Green no G1 para estratégia de coluna [${vitoriaConsecutivaColuna} VITÓRIA${
+          vitoriaConsecutivaColuna > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaColuna > 1 ? "S" : ""
+        }]\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} | Zeros: ${zerosColuna}`,
         "coluna"
       );
 
@@ -1279,10 +1440,21 @@ async function processarEstrategiaColunas(res) {
       resetarAlertaColunas();
     } else if (colunaAlvo.includes(getColuna(res.numero))) {
       totalGreensColuna++;
+      vitoriaConsecutivaColuna++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaColuna > maiorVitoriaConsecutivaColuna) {
+        maiorVitoriaConsecutivaColuna = vitoriaConsecutivaColuna;
+      }
+
       await enviarTelegram(
         `🟢 COLUNAS:  [${res.numero}] coluna ${getColuna(
           res.numero
-        )}! ✅ Green no G1 para estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        )}! ✅ Green no G1 para estratégia de coluna [${vitoriaConsecutivaColuna} VITÓRIA${
+          vitoriaConsecutivaColuna > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaColuna > 1 ? "S" : ""
+        }]\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} | Zeros: ${zerosColuna}`,
         "coluna"
       );
 
@@ -1307,10 +1479,12 @@ async function processarEstrategiaColunas(res) {
       resetarAlertaColunas();
     } else {
       totalRedsColuna++;
+      vitoriaConsecutivaColuna = 0; // Reseta contagem de vitórias consecutivas
+
       await enviarTelegram(
         `❌ COLUNAS:  [${res.numero}]  coluna ${getColuna(
           res.numero
-        )}. ❌ Red/perca na estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}`,
+        )}. ❌ Red/perca na estratégia de coluna\n📊 Colunas: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} | Zeros: ${zerosColuna}`,
         "coluna"
       );
 
@@ -1413,10 +1587,22 @@ async function processarEstrategiaDuzias(res) {
     );
 
     if (res.numero === 0) {
-      totalZeros++;
+      totalZeros++; // Contador geral de zeros
+      zerosDuzia++; // Contador específico de zeros para estratégia de dúzias
       totalGreensDuzia++;
+      vitoriaConsecutivaDuzia++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaDuzia > maiorVitoriaConsecutivaDuzia) {
+        maiorVitoriaConsecutivaDuzia = vitoriaConsecutivaDuzia;
+      }
+
       await enviarTelegram(
-        `🟢 DÚZIAS: Número 0 caiu! ✅ Green para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        `🟢 DÚZIAS: Número 0 caiu! ✅ Green para estratégia de dúzia [${vitoriaConsecutivaDuzia} VITÓRIA${
+          vitoriaConsecutivaDuzia > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaDuzia > 1 ? "S" : ""
+        }]\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia} | Zeros: ${zerosDuzia}`,
         "duzia"
       );
 
@@ -1441,10 +1627,21 @@ async function processarEstrategiaDuzias(res) {
       resetarAlertaDuzias();
     } else if (duziaAlvo.includes(getDuzia(res.numero))) {
       totalGreensDuzia++;
+      vitoriaConsecutivaDuzia++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaDuzia > maiorVitoriaConsecutivaDuzia) {
+        maiorVitoriaConsecutivaDuzia = vitoriaConsecutivaDuzia;
+      }
+
       await enviarTelegram(
         `🟢 DÚZIAS: Número ${res.numero} na dúzia ${getDuzia(
           res.numero
-        )}! ✅ Green para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        )}! ✅ Green para estratégia de dúzia [${vitoriaConsecutivaDuzia} VITÓRIA${
+          vitoriaConsecutivaDuzia > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaDuzia > 1 ? "S" : ""
+        }]\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia} | Zeros: ${zerosDuzia}`,
         "duzia"
       );
 
@@ -1485,10 +1682,22 @@ async function processarEstrategiaDuzias(res) {
     console.log("Processando G1 para estratégia de dúzia");
 
     if (res.numero === 0) {
-      totalZeros++;
+      totalZeros++; // Contador geral de zeros
+      zerosDuzia++; // Contador específico de zeros para estratégia de dúzias
       totalGreensDuzia++;
+      vitoriaConsecutivaDuzia++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaDuzia > maiorVitoriaConsecutivaDuzia) {
+        maiorVitoriaConsecutivaDuzia = vitoriaConsecutivaDuzia;
+      }
+
       await enviarTelegram(
-        `🟢 DÚZIAS: Número 0 caiu! ✅ Green no G1 para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        `🟢 DÚZIAS: Número 0 caiu! ✅ Green no G1 para estratégia de dúzia [${vitoriaConsecutivaDuzia} VITÓRIA${
+          vitoriaConsecutivaDuzia > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaDuzia > 1 ? "S" : ""
+        }]\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia} | Zeros: ${zerosDuzia}`,
         "duzia"
       );
 
@@ -1513,10 +1722,21 @@ async function processarEstrategiaDuzias(res) {
       resetarAlertaDuzias();
     } else if (duziaAlvo.includes(getDuzia(res.numero))) {
       totalGreensDuzia++;
+      vitoriaConsecutivaDuzia++; // Incrementa contagem de vitórias consecutivas
+
+      // Atualiza o contador de maior sequência de vitórias
+      if (vitoriaConsecutivaDuzia > maiorVitoriaConsecutivaDuzia) {
+        maiorVitoriaConsecutivaDuzia = vitoriaConsecutivaDuzia;
+      }
+
       await enviarTelegram(
         `🟢 DÚZIAS: Número ${res.numero} na dúzia ${getDuzia(
           res.numero
-        )}! ✅ Green no G1 para estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        )}! ✅ Green no G1 para estratégia de dúzia [${vitoriaConsecutivaDuzia} VITÓRIA${
+          vitoriaConsecutivaDuzia > 1 ? "S" : ""
+        } CONSECUTIVA${
+          vitoriaConsecutivaDuzia > 1 ? "S" : ""
+        }]\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia} | Zeros: ${zerosDuzia}`,
         "duzia"
       );
 
@@ -1541,10 +1761,12 @@ async function processarEstrategiaDuzias(res) {
       resetarAlertaDuzias();
     } else {
       totalRedsDuzia++;
+      vitoriaConsecutivaDuzia = 0; // Reseta contagem de vitórias consecutivas
+
       await enviarTelegram(
         `❌ DÚZIAS: Número ${res.numero} na dúzia ${getDuzia(
           res.numero
-        )}. ❌ Red/perca na estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}`,
+        )}. ❌ Red/perca na estratégia de dúzia\n📊 Dúzias: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia} | Zeros: ${zerosDuzia}`,
         "duzia"
       );
 
@@ -1695,10 +1917,10 @@ async function enviarTelegram(mensagem, estrategia = "geral") {
 async function enviarResumo() {
   // Resumo geral para o grupo principal
   await enviarTelegram(`📊 RESUMO PARCIAL (últimas ${contadorRodadas} rodadas):
-✅ 5 CORES: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} 
-✅ 3 CORES: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3}
-✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} 
-✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}
+✅ 5 CORES: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${zerosCor5} | Maior sequência: ${maiorVitoriaConsecutivaCor5} vitórias
+✅ 3 CORES: Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${zerosCor3} | Maior sequência: ${maiorVitoriaConsecutivaCor3} vitórias
+✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} | Zeros: ${zerosColuna} | Maior sequência: ${maiorVitoriaConsecutivaColuna} vitórias
+✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia} | Zeros: ${zerosDuzia} | Maior sequência: ${maiorVitoriaConsecutivaDuzia} vitórias
 🟢 Total de Zeros: ${totalZeros}
 📈 Total de rodadas: ${contadorRodadas}
 🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
@@ -1707,8 +1929,15 @@ async function enviarResumo() {
   // Resumo específico para o grupo de Cinco Cores
   await enviarTelegram(
     `📊 RESUMO PARCIAL - 5 CORES (últimas ${contadorRodadas} rodadas):
-✅ Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5}
-🟢 Total de Zeros: ${totalZeros}
+✅ Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${zerosCor5}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaCor5}
+${
+  vitoriaConsecutivaCor5 > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaCor5 +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
 ⚫ Maior sequência de pretos: ${maiorSequenciaPreto}`,
     "cor"
@@ -1717,8 +1946,15 @@ async function enviarResumo() {
   // Resumo específico para o grupo de Trio de Cores
   await enviarTelegram(
     `📊 RESUMO PARCIAL - 3 CORES (últimas ${contadorRodadas} rodadas):
-✅ Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3}
-🟢 Total de Zeros: ${totalZeros}
+✅ Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${zerosCor3}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaCor3}
+${
+  vitoriaConsecutivaCor3 > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaCor3 +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
 ⚫ Maior sequência de pretos: ${maiorSequenciaPreto}`,
     "trioCor"
@@ -1727,9 +1963,24 @@ async function enviarResumo() {
   // Resumo específico para o grupo de Colunas e Dúzias
   await enviarTelegram(
     `📊 RESUMO PARCIAL - COLUNAS & DÚZIAS (últimas ${contadorRodadas} rodadas):
-✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} 
-✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}
-🟢 Total de Zeros: ${totalZeros}`,
+✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} | Zeros: ${zerosColuna}
+🔄 Maior sequência (colunas): ${maiorVitoriaConsecutivaColuna}
+${
+  vitoriaConsecutivaColuna > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaColuna +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
+✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia} | Zeros: ${zerosDuzia}
+🔄 Maior sequência (dúzias): ${maiorVitoriaConsecutivaDuzia}
+${
+  vitoriaConsecutivaDuzia > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaDuzia +
+      " vitória(s) consecutiva(s)"
+    : ""
+}`,
     "coluna"
   );
 }
@@ -1744,24 +1995,60 @@ async function enviarRelatorioDetalhado() {
     (totalGreensCor5 / (totalGreensCor5 + totalRedsCor5 || 1)) * 100
   )}% de aproveitamento)
 ❌ Reds: ${totalRedsCor5}
+🟢 Zeros: ${zerosCor5}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaCor5}
+${
+  vitoriaConsecutivaCor5 > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaCor5 +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 🎲 ESTATÍSTICAS DE 3 CORES (TRIO):
 ✅ Greens: ${totalGreensCor3} (${Math.round(
     (totalGreensCor3 / (totalGreensCor3 + totalRedsCor3 || 1)) * 100
   )}% de aproveitamento)
 ❌ Reds: ${totalRedsCor3}
+🟢 Zeros: ${zerosCor3}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaCor3}
+${
+  vitoriaConsecutivaCor3 > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaCor3 +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 🎲 ESTATÍSTICAS DE COLUNAS:
 ✅ Greens: ${totalGreensColuna} (${Math.round(
     (totalGreensColuna / (totalGreensColuna + totalRedsColuna || 1)) * 100
   )}% de aproveitamento)
 ❌ Reds: ${totalRedsColuna}
+🟢 Zeros: ${zerosColuna}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaColuna}
+${
+  vitoriaConsecutivaColuna > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaColuna +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 🎲 ESTATÍSTICAS DE DÚZIAS:
 ✅ Greens: ${totalGreensDuzia} (${Math.round(
     (totalGreensDuzia / (totalGreensDuzia + totalRedsDuzia || 1)) * 100
   )}% de aproveitamento)
 ❌ Reds: ${totalRedsDuzia}
+🟢 Zeros: ${zerosDuzia}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaDuzia}
+${
+  vitoriaConsecutivaDuzia > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaDuzia +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
 ⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
@@ -1779,10 +2066,18 @@ async function enviarRelatorioDetalhado() {
       (totalGreensCor5 / (totalGreensCor5 + totalRedsCor5 || 1)) * 100
     )}% de aproveitamento)
 ❌ Reds: ${totalRedsCor5}
+🟢 Zeros: ${zerosCor5}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaCor5}
+${
+  vitoriaConsecutivaCor5 > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaCor5 +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
 ⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
-🟢 Total de Zeros: ${totalZeros}
 📈 Total de rodadas analisadas: ${contadorRodadas}
 
 📱 Bot monitorando 24/7 - Mantenha as apostas responsáveis!`,
@@ -1798,10 +2093,18 @@ async function enviarRelatorioDetalhado() {
       (totalGreensCor3 / (totalGreensCor3 + totalRedsCor3 || 1)) * 100
     )}% de aproveitamento)
 ❌ Reds: ${totalRedsCor3}
+🟢 Zeros: ${zerosCor3}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaCor3}
+${
+  vitoriaConsecutivaCor3 > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaCor3 +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
 ⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
-🟢 Total de Zeros: ${totalZeros}
 📈 Total de rodadas analisadas: ${contadorRodadas}
 
 📱 Bot monitorando 24/7 - Mantenha as apostas responsáveis!`,
@@ -1817,14 +2120,31 @@ async function enviarRelatorioDetalhado() {
       (totalGreensColuna / (totalGreensColuna + totalRedsColuna || 1)) * 100
     )}% de aproveitamento)
 ❌ Reds: ${totalRedsColuna}
+🟢 Zeros: ${zerosColuna}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaColuna}
+${
+  vitoriaConsecutivaColuna > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaColuna +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 🎲 ESTATÍSTICAS DE DÚZIAS:
 ✅ Greens: ${totalGreensDuzia} (${Math.round(
       (totalGreensDuzia / (totalGreensDuzia + totalRedsDuzia || 1)) * 100
     )}% de aproveitamento)
 ❌ Reds: ${totalRedsDuzia}
+🟢 Zeros: ${zerosDuzia}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaDuzia}
+${
+  vitoriaConsecutivaDuzia > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaDuzia +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
-🟢 Total de Zeros: ${totalZeros}
 📈 Total de rodadas analisadas: ${contadorRodadas}
 
 📱 Bot monitorando 24/7 - Mantenha as apostas responsáveis!`,
@@ -1845,10 +2165,10 @@ async function enviarRelatorioDiarioEReiniciar() {
   await enviarTelegram(`📅 RELATÓRIO FINAL DO DIA - ${dataFormatada}
 
 🎲 RESUMO DAS ÚLTIMAS 24 HORAS:
-✅ 5 CORES: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5}
-✅ 3 CORES (TRIO): Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3}
-✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} 
-✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}
+✅ 5 CORES: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${zerosCor5} | Maior sequência: ${maiorVitoriaConsecutivaCor5} vitórias
+✅ 3 CORES (TRIO): Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${zerosCor3} | Maior sequência: ${maiorVitoriaConsecutivaCor3} vitórias
+✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} | Zeros: ${zerosColuna} | Maior sequência: ${maiorVitoriaConsecutivaColuna} vitórias
+✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia} | Zeros: ${zerosDuzia} | Maior sequência: ${maiorVitoriaConsecutivaDuzia} vitórias
 🟢 Total de Zeros: ${totalZeros}
 📈 Total de rodadas analisadas: ${contadorRodadas}
 
@@ -1877,8 +2197,15 @@ async function enviarRelatorioDiarioEReiniciar() {
     `📅 RELATÓRIO FINAL DO DIA - 5 CORES - ${dataFormatada}
 
 🎲 RESUMO DAS ÚLTIMAS 24 HORAS:
-✅ 5 CORES: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5}
-🟢 Total de Zeros: ${totalZeros}
+✅ 5 CORES: Greens: ${totalGreensCor5} | Reds: ${totalRedsCor5} | Zeros: ${zerosCor5}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaCor5}
+${
+  vitoriaConsecutivaCor5 > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaCor5 +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
 ⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
@@ -1898,8 +2225,15 @@ async function enviarRelatorioDiarioEReiniciar() {
     `📅 RELATÓRIO FINAL DO DIA - 3 CORES (TRIO) - ${dataFormatada}
 
 🎲 RESUMO DAS ÚLTIMAS 24 HORAS:
-✅ 3 CORES (TRIO): Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3}
-🟢 Total de Zeros: ${totalZeros}
+✅ 3 CORES (TRIO): Greens: ${totalGreensCor3} | Reds: ${totalRedsCor3} | Zeros: ${zerosCor3}
+🔄 Maior sequência de vitórias: ${maiorVitoriaConsecutivaCor3}
+${
+  vitoriaConsecutivaCor3 > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaCor3 +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 🔴 Maior sequência de vermelhos: ${maiorSequenciaVermelho}
 ⚫ Maior sequência de pretos: ${maiorSequenciaPreto}
@@ -1919,9 +2253,25 @@ async function enviarRelatorioDiarioEReiniciar() {
     `📅 RELATÓRIO FINAL DO DIA - COLUNAS & DÚZIAS - ${dataFormatada}
 
 🎲 RESUMO DAS ÚLTIMAS 24 HORAS:
-✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna}
-✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia}
-🟢 Total de Zeros: ${totalZeros}
+✅ COLUNAS: Greens: ${totalGreensColuna} | Reds: ${totalRedsColuna} | Zeros: ${zerosColuna}
+🔄 Maior sequência (colunas): ${maiorVitoriaConsecutivaColuna}
+${
+  vitoriaConsecutivaColuna > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaColuna +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
+
+✅ DÚZIAS: Greens: ${totalGreensDuzia} | Reds: ${totalRedsDuzia} | Zeros: ${zerosDuzia}
+🔄 Maior sequência (dúzias): ${maiorVitoriaConsecutivaDuzia}
+${
+  vitoriaConsecutivaDuzia > 0
+    ? "🔥 Sequência atual: " +
+      vitoriaConsecutivaDuzia +
+      " vitória(s) consecutiva(s)"
+    : ""
+}
 
 💯 TAXA DE APROVEITAMENTO:
 🎯 Colunas: ${Math.round(
@@ -1939,20 +2289,38 @@ async function enviarRelatorioDiarioEReiniciar() {
   // Reinicia todos os contadores para o novo dia
   totalGreensCor5 = 0;
   totalRedsCor5 = 0;
-  totalGreensCor3 = 0; // NOVO: Reinicia contadores da estratégia de trio de cores
-  totalRedsCor3 = 0; // NOVO: Reinicia contadores da estratégia de trio de cores
+  zerosCor5 = 0; // Reset de zeros para estratégia de 5 cores
+
+  totalGreensCor3 = 0;
+  totalRedsCor3 = 0;
+  zerosCor3 = 0; // Reset de zeros para estratégia de 3 cores
+
   totalGreensColuna = 0;
   totalRedsColuna = 0;
+  zerosColuna = 0; // Reset de zeros para estratégia de colunas
+
   totalGreensDuzia = 0;
   totalRedsDuzia = 0;
-  totalZeros = 0;
+  zerosDuzia = 0; // Reset de zeros para estratégia de dúzias
+
+  totalZeros = 0; // Reset do contador geral de zeros
   contadorRodadas = 0;
 
-  // Não reiniciamos as sequências máximas, pois são recordes históricos
+  // Resetar contadores de vitórias consecutivas
+  vitoriaConsecutivaCor5 = 0;
+  vitoriaConsecutivaCor3 = 0;
+  vitoriaConsecutivaColuna = 0;
+  vitoriaConsecutivaDuzia = 0;
+
+  // Não reiniciamos as maiores sequências (nem de cores nem de vitórias), pois são recordes históricos
   // Se quiser reiniciar também, descomente as linhas abaixo
   /*
   maiorSequenciaVermelho = 0;
   maiorSequenciaPreto = 0;
+  maiorVitoriaConsecutivaCor5 = 0;
+  maiorVitoriaConsecutivaCor3 = 0;
+  maiorVitoriaConsecutivaColuna = 0;
+  maiorVitoriaConsecutivaDuzia = 0;
   */
 
   console.log("Contadores reiniciados para o novo dia.");
